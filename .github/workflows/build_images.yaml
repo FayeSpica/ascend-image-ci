@@ -40,6 +40,18 @@ on:
         description: 'Existing vllm-ascend tag to use as omni base (omni-only builds). Empty = use freshly built ascend tag.'
         type: string
         default: ''
+      vllm_ascend_image:
+        description: 'Base image repo for omni FROM (suffix -a3 auto-appended to its tag)'
+        type: string
+        default: 'quay.io/fayeomni/vllm-ascend'
+      omni_image:
+        description: 'Target image repo for vllm-omni'
+        type: string
+        default: 'quay.io/fayeomni/vllm-omni'
+      omni_tag:
+        description: 'Override omni tag base (suffix -a3 auto-appended). Empty = <vllm_tag>-<ascend_ref>-omni-<omni_ref>'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -63,6 +75,7 @@ jobs:
           ASCEND_REF: ${{ inputs.ascend_ref }}
           OMNI_REF: ${{ inputs.omni_ref }}
           BASE_TAG: ${{ inputs.vllm_ascend_base_tag }}
+          OMNI_TAG_IN: ${{ inputs.omni_tag }}
         run: |
           set -euo pipefail
           # sanitize refs: '/' is illegal in docker tags
@@ -74,7 +87,12 @@ jobs:
 
           ASCEND_TAG="${VLLM_TAG}-${A}"
           echo "ascend_tag=${ASCEND_TAG}" >> "$GITHUB_OUTPUT"
-          echo "omni_tag=${ASCEND_TAG}-omni-${O}" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "$OMNI_TAG_IN" ]]; then
+            echo "omni_tag=${OMNI_TAG_IN}" >> "$GITHUB_OUTPUT"
+          else
+            echo "omni_tag=${ASCEND_TAG}-omni-${O}" >> "$GITHUB_OUTPUT"
+          fi
 
           if [[ -n "$BASE_TAG" ]]; then
             echo "omni_base_tag=${BASE_TAG}" >> "$GITHUB_OUTPUT"
@@ -129,10 +147,10 @@ jobs:
       source_repo: vllm-project/vllm-omni
       source_ref: ${{ inputs.omni_ref }}
       dockerfile: ${{ matrix.variant.dockerfile }}
-      image: quay.io/fayeomni/vllm-omni
+      image: ${{ inputs.omni_image }}
       image_tag: ${{ needs.prep.outputs.omni_tag }}${{ matrix.variant.suffix }}
       artifact_key: ${{ matrix.variant.key }}
       build_args: |
-        VLLM_ASCEND_IMAGE=quay.io/fayeomni/vllm-ascend
+        VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image }}
         VLLM_ASCEND_TAG=${{ needs.prep.outputs.omni_base_tag }}${{ matrix.variant.suffix }}
     secrets: inherit
