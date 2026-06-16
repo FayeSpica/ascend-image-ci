@@ -1,0 +1,138 @@
+# Manually triggered orchestrator that builds vllm-ascend and/or vllm-omni
+# NPU images from their upstream source repos and pushes multi-arch manifests
+# to quay.io/fayeomni/*.
+#
+# Dependency chain: vllm-omni's NPU image is built FROM the vllm-ascend image
+# (FROM ${VLLM_ASCEND_IMAGE}:${VLLM_ASCEND_TAG}), so when both are selected the
+# omni build runs after the ascend build and uses the freshly built tag as its
+# base. To build omni alone against an existing ascend image, leave ascend
+# unselected and set `vllm_ascend_base_tag`.
+#
+# Published tags (suffix '-a3' for the A3 variant):
+#   vllm-ascend: <vllm_tag>-<ascend_ref>[-a3]
+#   vllm-omni:   <vllm_tag>-<ascend_ref>-omni-<omni_ref>[-a3]
+name: Build Ascend/Omni images
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Which images to build'
+        type: choice
+        default: 'ascend+omni'
+        options:
+          - ascend+omni
+          - ascend
+          - omni
+      vllm_tag:
+        description: 'vLLM tag/commit (VLLM_TAG build-arg for vllm-ascend)'
+        type: string
+        default: 'v0.23.0'
+      ascend_ref:
+        description: 'vllm-ascend ref to checkout (branch/tag/commit)'
+        type: string
+        default: 'main'
+      omni_ref:
+        description: 'vllm-omni ref to checkout (branch/tag/commit)'
+        type: string
+        default: 'main'
+      vllm_ascend_base_tag:
+        description: 'Existing vllm-ascend tag to use as omni base (omni-only builds). Empty = use freshly built ascend tag.'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  prep:
+    name: Resolve targets and tags
+    runs-on: ubuntu-latest
+    outputs:
+      build_ascend: ${{ steps.vars.outputs.build_ascend }}
+      build_omni: ${{ steps.vars.outputs.build_omni }}
+      ascend_tag: ${{ steps.vars.outputs.ascend_tag }}
+      omni_tag: ${{ steps.vars.outputs.omni_tag }}
+      omni_base_tag: ${{ steps.vars.outputs.omni_base_tag }}
+    steps:
+      - name: Compute
+        id: vars
+        env:
+          TARGETS: ${{ inputs.targets }}
+          VLLM_TAG: ${{ inputs.vllm_tag }}
+          ASCEND_REF: ${{ inputs.ascend_ref }}
+          OMNI_REF: ${{ inputs.omni_ref }}
+          BASE_TAG: ${{ inputs.vllm_ascend_base_tag }}
+        run: |
+          set -euo pipefail
+          # sanitize refs: '/' is illegal in docker tags
+          A="${ASCEND_REF//\//-}"
+          O="${OMNI_REF//\//-}"
+
+          if [[ "$TARGETS" == *ascend* ]]; then echo "build_ascend=true"; else echo "build_ascend=false"; fi >> "$GITHUB_OUTPUT"
+          if [[ "$TARGETS" == *omni* ]];   then echo "build_omni=true";   else echo "build_omni=false";   fi >> "$GITHUB_OUTPUT"
+
+          ASCEND_TAG="${VLLM_TAG}-${A}"
+          echo "ascend_tag=${ASCEND_TAG}" >> "$GITHUB_OUTPUT"
+          echo "omni_tag=${ASCEND_TAG}-omni-${O}" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "$BASE_TAG" ]]; then
+            echo "omni_base_tag=${BASE_TAG}" >> "$GITHUB_OUTPUT"
+          else
+            echo "omni_base_tag=${ASCEND_TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
+  ascend:
+    name: vllm-ascend
+    needs: prep
+    if: ${{ needs.prep.outputs.build_ascend == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - dockerfile: Dockerfile
+            suffix: ''
+            key: ascend-a2
+          - dockerfile: Dockerfile.a3
+            suffix: '-a3'
+            key: ascend-a3
+    uses: ./.github/workflows/_build_push_image.yaml
+    with:
+      source_repo: vllm-project/vllm-ascend
+      source_ref: ${{ inputs.ascend_ref }}
+      dockerfile: ${{ matrix.variant.dockerfile }}
+      image: quay.io/fayeomni/vllm-ascend
+      image_tag: ${{ needs.prep.outputs.ascend_tag }}${{ matrix.variant.suffix }}
+      artifact_key: ${{ matrix.variant.key }}
+      build_args: |
+        VLLM_TAG=${{ inputs.vllm_tag }}
+    secrets: inherit
+
+  omni:
+    name: vllm-omni
+    needs: [prep, ascend]
+    # run when omni is selected and ascend either succeeded or was skipped
+    # (omni-only build against an existing base tag)
+    if: ${{ always() && needs.prep.outputs.build_omni == 'true' && (needs.ascend.result == 'success' || needs.ascend.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - dockerfile: docker/Dockerfile.npu
+            suffix: ''
+            key: omni-a2
+          - dockerfile: docker/Dockerfile.npu.a3
+            suffix: '-a3'
+            key: omni-a3
+    uses: ./.github/workflows/_build_push_image.yaml
+    with:
+      source_repo: vllm-project/vllm-omni
+      source_ref: ${{ inputs.omni_ref }}
+      dockerfile: ${{ matrix.variant.dockerfile }}
+      image: quay.io/fayeomni/vllm-omni
+      image_tag: ${{ needs.prep.outputs.omni_tag }}${{ matrix.variant.suffix }}
+      artifact_key: ${{ matrix.variant.key }}
+      build_args: |
+        VLLM_ASCEND_IMAGE=quay.io/fayeomni/vllm-ascend
+        VLLM_ASCEND_TAG=${{ needs.prep.outputs.omni_base_tag }}${{ matrix.variant.suffix }}
+    secrets: inherit

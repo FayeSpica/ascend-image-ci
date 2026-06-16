@@ -1,0 +1,150 @@
+# Reusable workflow: build a single image from an external source repo for
+# both amd64 + arm64 on native runners, push by digest, then merge into one
+# multi-arch manifest tag.
+#
+# Credentials: the caller must pass `secrets: inherit`. The repo variable
+# QUAY_USERNAME and secret QUAY_PASSWORD are used to log in to quay.io.
+name: _build_push_image
+
+on:
+  workflow_call:
+    inputs:
+      source_repo:
+        description: 'GitHub repo to checkout as build context (owner/name)'
+        required: true
+        type: string
+      source_ref:
+        description: 'Ref (branch/tag/commit) of source_repo to build'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to the Dockerfile within source_repo'
+        required: true
+        type: string
+      image:
+        description: 'Target image name (e.g. quay.io/fayeomni/vllm-ascend)'
+        required: true
+        type: string
+      image_tag:
+        description: 'Full image tag to publish (suffix already included)'
+        required: true
+        type: string
+      artifact_key:
+        description: 'Unique key to namespace digest artifacts across calls'
+        required: true
+        type: string
+      build_args:
+        description: 'Newline-separated docker build args'
+        required: false
+        type: string
+        default: ''
+      build_context:
+        description: 'Build context path within the checked-out source'
+        required: false
+        type: string
+        default: '.'
+    secrets:
+      QUAY_PASSWORD:
+        description: 'Quay password/token for pushing images'
+        required: true
+
+jobs:
+  build-digest:
+    name: build ${{ inputs.artifact_key }} (${{ matrix.arch.tag }})
+    runs-on: ${{ matrix.arch.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            tag: amd64
+          - platform: linux/arm64
+            runner: ubuntu-22.04-arm
+            tag: arm64
+    steps:
+      - name: Checkout ${{ inputs.source_repo }}@${{ inputs.source_ref }}
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.source_repo }}
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          docker-images: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to Quay
+        uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ vars.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.build_context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.arch.platform }}
+          push: true
+          provenance: false
+          outputs: type=image,name=${{ inputs.image }},push-by-digest=true,name-canonical=true,push=true
+          build-args: ${{ inputs.build_args }}
+
+      - name: Export digest
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ inputs.artifact_key }}-${{ matrix.arch.tag }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: merge ${{ inputs.artifact_key }}
+    runs-on: ubuntu-latest
+    needs: build-digest
+    permissions:
+      contents: read
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ inputs.artifact_key }}-*
+          merge-multiple: true
+
+      - name: Login to Quay
+        uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ vars.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Merge and push multi-arch manifest
+        env:
+          IMAGE: ${{ inputs.image }}
+          TAG: ${{ inputs.image }}:${{ inputs.image_tag }}
+        run: |
+          DIGESTS=$(printf "${IMAGE}@sha256:%s " $(ls "${{ runner.temp }}/digests"))
+          echo "Merging into ${TAG}:"
+          echo "  ${DIGESTS}"
+          docker buildx imagetools create -t "${TAG}" ${DIGESTS}
+          docker buildx imagetools inspect "${TAG}"
