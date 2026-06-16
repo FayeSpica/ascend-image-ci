@@ -49,7 +49,7 @@ on:
         required: true
 
 jobs:
-  build-digest:
+  build-push:
     name: build ${{ inputs.artifact_key }} (${{ matrix.arch.tag }})
     runs-on: ${{ matrix.arch.runner }}
     permissions:
@@ -88,8 +88,9 @@ jobs:
           username: ${{ vars.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
-      - name: Build and push by digest
-        id: build
+      # Push to a per-arch tag (not push-by-digest): Quay garbage-collects
+      # untagged digests, which can race with slow builds and break the merge.
+      - name: Build and push per-arch tag
         uses: docker/build-push-action@v7
         with:
           context: ${{ inputs.build_context }}
@@ -97,37 +98,16 @@ jobs:
           platforms: ${{ matrix.arch.platform }}
           push: true
           provenance: false
-          outputs: type=image,name=${{ inputs.image }},push-by-digest=true,name-canonical=true,push=true
+          tags: ${{ inputs.image }}:${{ inputs.image_tag }}-${{ matrix.arch.tag }}
           build-args: ${{ inputs.build_args }}
-
-      - name: Export digest
-        run: |
-          mkdir -p "${{ runner.temp }}/digests"
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
-
-      - name: Upload digest
-        uses: actions/upload-artifact@v7
-        with:
-          name: digests-${{ inputs.artifact_key }}-${{ matrix.arch.tag }}
-          path: ${{ runner.temp }}/digests/*
-          if-no-files-found: error
-          retention-days: 1
 
   merge:
     name: merge ${{ inputs.artifact_key }}
     runs-on: ubuntu-latest
-    needs: build-digest
+    needs: build-push
     permissions:
       contents: read
     steps:
-      - name: Download digests
-        uses: actions/download-artifact@v8
-        with:
-          path: ${{ runner.temp }}/digests
-          pattern: digests-${{ inputs.artifact_key }}-*
-          merge-multiple: true
-
       - name: Login to Quay
         uses: docker/login-action@v4
         with:
@@ -140,11 +120,9 @@ jobs:
 
       - name: Merge and push multi-arch manifest
         env:
-          IMAGE: ${{ inputs.image }}
           TAG: ${{ inputs.image }}:${{ inputs.image_tag }}
         run: |
-          DIGESTS=$(printf "${IMAGE}@sha256:%s " $(ls "${{ runner.temp }}/digests"))
-          echo "Merging into ${TAG}:"
-          echo "  ${DIGESTS}"
-          docker buildx imagetools create -t "${TAG}" ${DIGESTS}
+          docker buildx imagetools create -t "${TAG}" \
+            "${TAG}-amd64" \
+            "${TAG}-arm64"
           docker buildx imagetools inspect "${TAG}"
