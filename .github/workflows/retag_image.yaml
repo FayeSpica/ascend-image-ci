@@ -1,0 +1,67 @@
+# Manually triggered job to copy a multi-arch image (arm64 + amd64) from the
+# fayeomni namespace to the atlas-ci namespace, preserving the manifest list
+# as-is (no rebuild).
+#
+# The source is pulled anonymously (publicly readable), so only the
+# destination account needs credentials. skopeo `--all` carries every
+# architecture over without a rebuild.
+#
+# Required configuration (repo Settings -> Secrets and variables -> Actions):
+#   Variable ATLAS_CI_QUAY_USERNAME / Secret ATLAS_CI_QUAY_PASSWORD -> dest (atlas-ci, write)
+name: Retag image to atlas-ci
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_image:
+        description: 'Source image (read with QUAY_* creds)'
+        required: true
+        type: string
+        default: 'quay.io/fayeomni/vllm-ascend:v0.23.0-4885d8e7b7f4bf03a0b6c895428fc4fdcdfd6f23'
+      dest_image:
+        description: 'Destination image (written with ATLAS_CI_QUAY_* creds)'
+        required: true
+        type: string
+        default: 'quay.io/atlas-ci/vllm-ascend:v0.23.0-4885d8e'
+
+permissions:
+  contents: read
+
+jobs:
+  retag:
+    name: Copy multi-arch image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Copy all architectures
+        env:
+          DST_USER: ${{ vars.ATLAS_CI_QUAY_USERNAME }}
+          DST_PASS: ${{ secrets.ATLAS_CI_QUAY_PASSWORD }}
+          SRC: ${{ inputs.source_image }}
+          DST: ${{ inputs.dest_image }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DST_USER" || -z "$DST_PASS" ]]; then
+            echo "::error::ATLAS_CI_QUAY_USERNAME (variable) and ATLAS_CI_QUAY_PASSWORD (secret) must be configured."
+            exit 1
+          fi
+          echo "Copying ${SRC} -> ${DST} (all architectures)"
+          skopeo copy --all \
+            --dest-creds "${DST_USER}:${DST_PASS}" \
+            "docker://${SRC}" \
+            "docker://${DST}"
+
+      - name: Verify destination manifest
+        env:
+          DST_USER: ${{ vars.ATLAS_CI_QUAY_USERNAME }}
+          DST_PASS: ${{ secrets.ATLAS_CI_QUAY_PASSWORD }}
+          DST: ${{ inputs.dest_image }}
+        run: |
+          set -euo pipefail
+          echo "Architectures now published at ${DST}:"
+          skopeo inspect --raw --creds "${DST_USER}:${DST_PASS}" "docker://${DST}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(m['platform']['os']+'/'+m['platform']['architecture'] for m in d.get('manifests', [])) or 'single-arch: '+d.get('mediaType',''))"
