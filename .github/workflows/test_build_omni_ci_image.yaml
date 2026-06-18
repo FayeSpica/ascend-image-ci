@@ -3,7 +3,7 @@
 #
 # The Dockerfile clones vllm-omni at build time (default branch: main) instead
 # of COPYing a local context, so the build context here is just this repo.
-# The image is BUILT but NOT pushed — this only verifies the build succeeds.
+# On success the image is pushed to quay.io/fayeomni/temp:omni-a3-ci.
 #
 # The .a3 variant targets Ascend A3 (arm64), so it builds on an arm64 runner.
 name: Test CI image build
@@ -56,15 +56,15 @@ jobs:
           username: ${{ vars.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
-      - name: Build CI image (no push)
+      - name: Build and push CI image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/vllm-omni/Dockerfile.npu.ci.a3
           platforms: linux/arm64
-          push: false
+          push: true
           provenance: false
-          tags: vllm-omni-npu-ci:test
+          tags: quay.io/fayeomni/temp:omni-a3-ci
           build-args: |
             VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image || 'quay.io/atlas-ci/vllm-ascend' }}
             VLLM_ASCEND_TAG=${{ inputs.vllm_ascend_tag || 'v0.23.0-4885d8e-a3' }}
