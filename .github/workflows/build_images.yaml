@@ -25,7 +25,7 @@ on:
           - ascend
           - omni
       vllm_tag:
-        description: 'vLLM tag/commit (VLLM_TAG build-arg for vllm-ascend)'
+        description: 'vLLM tag/commit/branch (VLLM_TAG build-arg for vllm-ascend). A pre-tag release branch like releases/v0.24.0 is allowed; the published image tag uses the branch basename (v0.24.0).'
         type: string
         default: 'v0.23.0'
       ascend_ref:
@@ -78,14 +78,20 @@ jobs:
           OMNI_TAG_IN: ${{ inputs.omni_tag }}
         run: |
           set -euo pipefail
-          # sanitize refs: '/' is illegal in docker tags
-          A="${ASCEND_REF//\//-}"
-          O="${OMNI_REF//\//-}"
+          # Derive tag fragments from the ref basename (strip everything up to
+          # the last '/'), which both drops the 'releases/' prefix and removes
+          # the '/' that is illegal in docker tags. The raw inputs are still
+          # valid git refs (used for checkout / VLLM_TAG build-arg), so passing a
+          # pre-tag release branch (e.g. releases/v0.24.0) builds from that
+          # branch but publishes under the clean tag fragment (v0.24.0).
+          A="${ASCEND_REF##*/}"
+          O="${OMNI_REF##*/}"
+          V="${VLLM_TAG##*/}"
 
           if [[ "$TARGETS" == *ascend* ]]; then echo "build_ascend=true"; else echo "build_ascend=false"; fi >> "$GITHUB_OUTPUT"
           if [[ "$TARGETS" == *omni* ]];   then echo "build_omni=true";   else echo "build_omni=false";   fi >> "$GITHUB_OUTPUT"
 
-          ASCEND_TAG="${VLLM_TAG}-${A}"
+          ASCEND_TAG="${V}-${A}"
           echo "ascend_tag=${ASCEND_TAG}" >> "$GITHUB_OUTPUT"
 
           if [[ -n "$OMNI_TAG_IN" ]]; then
