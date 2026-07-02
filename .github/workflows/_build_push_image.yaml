@@ -90,6 +90,9 @@ jobs:
 
       # Push to a per-arch tag (not push-by-digest): Quay garbage-collects
       # untagged digests, which can race with slow builds and break the merge.
+      # The quay.expires-after label makes Quay auto-drop these interim per-arch
+      # tags after the window; the digests survive because the multi-arch
+      # manifest list references them, so only the tag pointers disappear.
       - name: Build and push per-arch tag
         uses: docker/build-push-action@v7
         with:
@@ -99,6 +102,8 @@ jobs:
           push: true
           provenance: false
           tags: ${{ inputs.image }}:${{ inputs.image_tag }}-${{ matrix.arch.tag }}
+          labels: |
+            quay.expires-after=6h
           build-args: ${{ inputs.build_args }}
 
   merge:
