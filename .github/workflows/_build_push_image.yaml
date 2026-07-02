@@ -47,6 +47,9 @@ on:
       QUAY_PASSWORD:
         description: 'Quay password/token for pushing images'
         required: true
+      QUAY_OAUTH_TOKEN:
+        description: 'Quay OAuth token (delete perms) to prune interim per-arch tags after merge. Optional; cleanup is skipped when unset.'
+        required: false
 
 jobs:
   build-push:
@@ -90,9 +93,8 @@ jobs:
 
       # Push to a per-arch tag (not push-by-digest): Quay garbage-collects
       # untagged digests, which can race with slow builds and break the merge.
-      # The quay.expires-after label makes Quay auto-drop these interim per-arch
-      # tags after the window; the digests survive because the multi-arch
-      # manifest list references them, so only the tag pointers disappear.
+      # These interim per-arch tags are pruned by the merge job after the
+      # multi-arch manifest is created (see "Delete per-arch tags").
       - name: Build and push per-arch tag
         uses: docker/build-push-action@v7
         with:
@@ -102,8 +104,6 @@ jobs:
           push: true
           provenance: false
           tags: ${{ inputs.image }}:${{ inputs.image_tag }}-${{ matrix.arch.tag }}
-          labels: |
-            quay.expires-after=6h
           build-args: ${{ inputs.build_args }}
 
   merge:
@@ -131,3 +131,36 @@ jobs:
             "${TAG}-amd64" \
             "${TAG}-arm64"
           docker buildx imagetools inspect "${TAG}"
+
+      # Prune the interim per-arch tags now that the multi-arch manifest
+      # references their digests. Uses Quay's REST API so only these two tag
+      # pointers are removed and nothing is baked into any image: a v2 registry
+      # DELETE by digest (what `skopeo delete` does) would drop the shared child
+      # manifest and break the list, and a quay.expires-after label would be
+      # inherited by FROM-derived and retagged images. The digests survive
+      # because the manifest list references them.
+      - name: Delete per-arch tags
+        env:
+          IMAGE: ${{ inputs.image }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          QUAY_TOKEN: ${{ secrets.QUAY_OAUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${QUAY_TOKEN:-}" ]]; then
+            echo "QUAY_OAUTH_TOKEN not set; skipping per-arch tag cleanup."
+            exit 0
+          fi
+          # API path uses <namespace>/<repo> without the registry host.
+          repo="${IMAGE#quay.io/}"
+          for arch in amd64 arm64; do
+            tag="${IMAGE_TAG}-${arch}"
+            echo "Deleting tag ${repo}:${tag}"
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
+              -H "Authorization: Bearer ${QUAY_TOKEN}" \
+              "https://quay.io/api/v1/repository/${repo}/tag/${tag}")
+            if [[ "$code" == "204" || "$code" == "200" ]]; then
+              echo "Deleted ${repo}:${tag}"
+            else
+              echo "::warning::Failed to delete ${repo}:${tag} (HTTP ${code})"
+            fi
+          done
