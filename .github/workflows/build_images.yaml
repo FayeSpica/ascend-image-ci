@@ -25,15 +25,19 @@ on:
           - ascend
           - omni
       vllm_tag:
-        description: 'vLLM tag/commit/branch (VLLM_TAG build-arg for vllm-ascend). A pre-tag release branch like releases/v0.24.0 is allowed; the published image tag uses the branch basename (v0.24.0).'
+        description: 'vLLM tag/branch (VLLM_TAG build-arg, git clone -b). Ignored when vllm_commit is set. A pre-tag release branch like releases/v0.24.0 is allowed; the published image tag uses the branch basename (v0.24.0).'
         type: string
         default: 'v0.23.0'
+      vllm_commit:
+        description: 'vLLM commit SHA to build (VLLM_COMMIT build-arg, git fetch <sha>). Use this for a bare commit that git clone -b cannot check out. When set, it wins over vllm_tag and the tag fragment uses the first 8 chars. Empty = build from vllm_tag.'
+        type: string
+        default: ''
       ascend_ref:
-        description: 'vllm-ascend ref to checkout (branch/tag/commit)'
+        description: 'vllm-ascend ref to checkout (branch/tag/commit, or a PR ref like refs/pull/11709/head)'
         type: string
         default: 'main'
       omni_ref:
-        description: 'vllm-omni ref to checkout (branch/tag/commit)'
+        description: 'vllm-omni ref to checkout (branch/tag/commit, or a PR ref like refs/pull/123/head)'
         type: string
         default: 'main'
       vllm_ascend_base_tag:
@@ -66,27 +70,54 @@ jobs:
       ascend_tag: ${{ steps.vars.outputs.ascend_tag }}
       omni_tag: ${{ steps.vars.outputs.omni_tag }}
       omni_base_tag: ${{ steps.vars.outputs.omni_base_tag }}
+      vllm_commit: ${{ steps.vars.outputs.vllm_commit }}
     steps:
       - name: Compute
         id: vars
         env:
           TARGETS: ${{ inputs.targets }}
           VLLM_TAG: ${{ inputs.vllm_tag }}
+          VLLM_COMMIT_IN: ${{ inputs.vllm_commit }}
           ASCEND_REF: ${{ inputs.ascend_ref }}
           OMNI_REF: ${{ inputs.omni_ref }}
           BASE_TAG: ${{ inputs.vllm_ascend_base_tag }}
           OMNI_TAG_IN: ${{ inputs.omni_tag }}
         run: |
           set -euo pipefail
-          # Derive tag fragments from the ref basename (strip everything up to
-          # the last '/'), which both drops the 'releases/' prefix and removes
-          # the '/' that is illegal in docker tags. The raw inputs are still
-          # valid git refs (used for checkout / VLLM_TAG build-arg), so passing a
-          # pre-tag release branch (e.g. releases/v0.24.0) builds from that
-          # branch but publishes under the clean tag fragment (v0.24.0).
-          A="${ASCEND_REF##*/}"
-          O="${OMNI_REF##*/}"
-          V="${VLLM_TAG##*/}"
+          # Normalize a git ref into a docker-tag-safe fragment. The raw inputs
+          # are still used verbatim for checkout / VLLM_TAG build-arg, so this
+          # only affects the published tag:
+          #   refs/pull/<N>/head|merge -> pr<N>   (a PR ref's basename is the
+          #                                        useless 'head'/'merge')
+          #   <40-char hex SHA>        -> first 8 chars (full SHA bloats the tag)
+          #   otherwise                -> basename (strip up to last '/'), which
+          #                               drops the 'releases/' prefix and the
+          #                               '/' that is illegal in docker tags, so
+          #                               releases/v0.24.0 publishes as v0.24.0.
+          norm() {
+            local ref="$1"
+            if [[ "$ref" =~ ^refs/pull/([0-9]+)/(head|merge)$ ]]; then
+              echo "pr${BASH_REMATCH[1]}"
+            elif [[ "$ref" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "${ref:0:8}"
+            else
+              echo "${ref##*/}"
+            fi
+          }
+          A="$(norm "$ASCEND_REF")"
+          O="$(norm "$OMNI_REF")"
+
+          # Build from vllm_commit if set, else vllm_tag. A bare SHA can't be
+          # cloned with `git clone -b` (the vllm-ascend Dockerfile's default
+          # path, which fails with "Remote branch <sha> not found"); the
+          # Dockerfile routes VLLM_COMMIT through `git fetch <sha>` instead. The
+          # tag fragment uses a short commit, else the normalized vllm_tag.
+          echo "vllm_commit=${VLLM_COMMIT_IN}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$VLLM_COMMIT_IN" ]]; then
+            V="${VLLM_COMMIT_IN:0:8}"
+          else
+            V="$(norm "$VLLM_TAG")"
+          fi
 
           if [[ "$TARGETS" == *ascend* ]]; then echo "build_ascend=true"; else echo "build_ascend=false"; fi >> "$GITHUB_OUTPUT"
           if [[ "$TARGETS" == *omni* ]];   then echo "build_omni=true";   else echo "build_omni=false";   fi >> "$GITHUB_OUTPUT"
@@ -130,6 +161,7 @@ jobs:
       artifact_key: ${{ matrix.variant.key }}
       build_args: |
         VLLM_TAG=${{ inputs.vllm_tag }}
+        VLLM_COMMIT=${{ needs.prep.outputs.vllm_commit }}
     secrets: inherit
 
   omni:
