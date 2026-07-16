@@ -1,19 +1,19 @@
-# Manually triggered job to patch an already-built multi-arch image by
-# uninstalling pip package(s) from it, then re-publishing under a new tag.
+# Manually triggered job to patch an already-built multi-arch image by baking a
+# global LD_PRELOAD (libjemalloc) into it, then re-publishing under a new tag.
 #
-# Motivation: mooncake-transfer-engine-npu's native library aborts (SIGABRT) on
-# import in some environments, which crashes vllm-ascend model inspection.
-# Removing the package sidesteps it without rebuilding the whole image.
+# Motivation: the vllm-ascend base only sets LD_PRELOAD in ~/.bashrc, so it
+# applies to login shells but not the vllm server process. Setting it as a
+# Docker ENV makes jemalloc preload globally. The value is referenced by soname
+# so a single static value works on both amd64 and arm64 (see the Dockerfile).
 #
 # Multi-arch is handled by reusing _build_push_image.yaml: it builds each arch on
-# its native runner (so the `pip uninstall` RUN executes natively, no QEMU),
-# pushes per-arch tags, merges them into one manifest, and prunes the interim
-# tags. The patch itself lives in patch/Dockerfile.pip-uninstall.
+# its native runner, pushes per-arch tags, merges them into one manifest, and
+# prunes the interim tags. The patch itself is patch/Dockerfile.ld-preload.
 #
 # Required configuration (repo Settings -> Secrets and variables -> Actions):
 #   Variable QUAY_USERNAME / Secret QUAY_PASSWORD -> read source + write dest
 #   Secret QUAY_OAUTH_TOKEN (optional)            -> prune interim per-arch tags
-name: Patch image (pip uninstall)
+name: Patch image (LD_PRELOAD)
 
 on:
   workflow_dispatch:
@@ -27,12 +27,7 @@ on:
         description: 'Destination image (full ref incl. tag) for the patched image'
         required: true
         type: string
-        default: 'quay.io/fayeomni/vllm-ascend:v0.23.0-main-nomooncake'
-      packages:
-        description: 'Space-separated pip packages to uninstall'
-        required: false
-        type: string
-        default: 'mooncake-transfer-engine-npu'
+        default: 'quay.io/fayeomni/vllm-ascend:v0.23.0-main-jemalloc'
 
 permissions:
   contents: read
@@ -62,19 +57,18 @@ jobs:
           echo "tag=${DST##*:}" >> "$GITHUB_OUTPUT"     # everything after the last ':'
 
   patch:
-    name: Uninstall and re-publish
+    name: Bake LD_PRELOAD and re-publish
     needs: prep
     uses: ./.github/workflows/_build_push_image.yaml
     with:
-      # Build context is THIS repo (holds patch/Dockerfile.pip-uninstall); the
+      # Build context is THIS repo (holds patch/Dockerfile.ld-preload); the
       # image being patched comes in via the BASE_IMAGE build-arg / FROM.
       source_repo: ${{ github.repository }}
       source_ref: ${{ github.sha }}
-      dockerfile: patch/Dockerfile.pip-uninstall
+      dockerfile: patch/Dockerfile.ld-preload
       image: ${{ needs.prep.outputs.image }}
       image_tag: ${{ needs.prep.outputs.tag }}
-      artifact_key: patch-pip-uninstall
+      artifact_key: patch-ld-preload
       build_args: |
         BASE_IMAGE=${{ inputs.source_image }}
-        PIP_UNINSTALL=${{ inputs.packages }}
     secrets: inherit
