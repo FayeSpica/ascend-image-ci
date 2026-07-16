@@ -1,0 +1,25 @@
+# Patch an existing image by baking a global LD_PRELOAD so libjemalloc is
+# preloaded for EVERY process. The vllm-ascend base only sets it in ~/.bashrc
+# (login shells), so the vllm server process never picks it up; a Docker ENV
+# makes it global.
+#
+# Full arch-specific path, resolved at build time (no runtime $(uname -m)):
+# buildx auto-populates TARGETARCH (amd64/arm64) per built platform. Ubuntu's
+# lib dir is named by the GNU triplet (x86_64-/aarch64-linux-gnu), which differs
+# from TARGETARCH, so alias a TARGETARCH-named dir to the real triplet dir (and
+# verify the library exists) so the ${TARGETARCH} path in ENV resolves on both
+# amd64 and arm64.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG TARGETARCH
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) triplet=x86_64-linux-gnu ;; \
+      arm64) triplet=aarch64-linux-gnu ;; \
+      *) echo "unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    test -e "/usr/lib/$triplet/libjemalloc.so.2"; \
+    ln -sfn "/usr/lib/$triplet" "/usr/lib/${TARGETARCH}-linux-gnu"
+
+ENV LD_PRELOAD=/usr/lib/${TARGETARCH}-linux-gnu/libjemalloc.so.2
