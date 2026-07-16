@@ -3,23 +3,15 @@
 # (login shells), so the vllm server process never picks it up; a Docker ENV
 # makes it global.
 #
-# Full arch-specific path, resolved at build time (no runtime $(uname -m)):
-# buildx auto-populates TARGETARCH (amd64/arm64) per built platform. Ubuntu's
-# lib dir is named by the GNU triplet (x86_64-/aarch64-linux-gnu), which differs
-# from TARGETARCH, so alias a TARGETARCH-named dir to the real triplet dir (and
-# verify the library exists) so the ${TARGETARCH} path in ENV resolves on both
-# amd64 and arm64.
+# Referenced by soname (no path) on purpose. The base image's line
+#   export LD_PRELOAD=/usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
+# needs $(uname -m) precisely because the arch-specific path (x86_64- vs
+# aarch64-linux-gnu) can't be written as one static string. A Docker ENV can't
+# run $(uname -m), and ${TARGETARCH} only yields amd64/arm64 (not the GNU
+# triplet), so hardcoding a path would be wrong on one arch. The bare soname
+# lets the dynamic linker resolve libjemalloc.so.2 via the ld.so cache to the
+# real arch-specific library, so one static value is correct on both arches.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-ARG TARGETARCH
-RUN set -eux; \
-    case "$TARGETARCH" in \
-      amd64) triplet=x86_64-linux-gnu ;; \
-      arm64) triplet=aarch64-linux-gnu ;; \
-      *) echo "unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
-    esac; \
-    test -e "/usr/lib/$triplet/libjemalloc.so.2"; \
-    ln -sfn "/usr/lib/$triplet" "/usr/lib/${TARGETARCH}-linux-gnu"
-
-ENV LD_PRELOAD=/usr/lib/${TARGETARCH}-linux-gnu/libjemalloc.so.2
+ENV LD_PRELOAD=libjemalloc.so.2
