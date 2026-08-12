@@ -1,0 +1,3 @@
+# Wheels are hosted as GitHub Release assets, not vendored -- see
+# patch/Dockerfile.mindie-sd. This keeps a local staging copy out of git.
+packages/
