@@ -61,8 +61,11 @@ OPS_SCRIPT=build/build_ops.sh
 grep -qE '^[[:space:]]*source .*build_tik_ops\.sh' "$OPS_SCRIPT"
 sed -i -E 's|^([[:space:]]*)(source .*build_tik_ops\.sh)|\1# \2|' "$OPS_SCRIPT"
 
-# bdist_wheel needs setuptools' wheel backend; not always installed in the base.
-python3 -m pip install --no-cache-dir wheel
+# setup.py imports setuptools, and bdist_wheel needs its wheel backend. Neither
+# is present: since Python 3.12 the stdlib no longer bundles distutils and new
+# environments no longer get setuptools preinstalled, so the CANN py3.12 image
+# ships pip only.
+python3 -m pip install --no-cache-dir setuptools wheel
 
 python3 setup.py bdist_wheel
 
