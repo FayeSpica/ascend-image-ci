@@ -1,0 +1,35 @@
+# Patch an existing image by installing MindIE-SD, then re-publish it. Driven by
+# the "Patch image (MindIE-SD)" workflow via _build_push_image.
+#
+#   BASE_IMAGE      - the source image to patch (declared before FROM)
+#   MINDIE_SD_REPO  - git repo to clone
+#   MINDIE_SD_REF   - ref to check out; empty means the default branch
+#
+# MindIE-SD is not on PyPI, so the wheel is built from source. That happens in a
+# builder stage FROM the same base (it needs that image's CANN toolchain), and
+# only the wheel is carried into the final image — so the patched image differs
+# from its source by one pip-install layer, with no source tree, git clone or
+# build-time apt/pip installs baked in.
+#
+# _build_push_image builds each arch on its native runner, so the wheel is built
+# natively per arch with no QEMU emulation.
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE} AS builder
+
+ARG MINDIE_SD_REPO=https://gitcode.com/Ascend/MindIE-SD.git
+ARG MINDIE_SD_REF=
+
+# Build context is the ascend-image-ci checkout, so the script comes from here.
+COPY patch/build-mindie-sd.sh /tmp/build-mindie-sd.sh
+RUN chmod +x /tmp/build-mindie-sd.sh && \
+    /tmp/build-mindie-sd.sh "${MINDIE_SD_REPO}" "${MINDIE_SD_REF}"
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /out/mindiesd-*.whl /tmp/
+# Verify by metadata rather than `import mindiesd`: the package touches the NPU
+# on import and CI runners have no Ascend device.
+RUN python3 -m pip install --no-cache-dir /tmp/mindiesd-*.whl && \
+    rm -f /tmp/mindiesd-*.whl && \
+    python3 -m pip show mindiesd
