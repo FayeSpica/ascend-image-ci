@@ -22,6 +22,11 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 # The ops build inside setup.py needs the CANN toolchain on PATH/LD_LIBRARY_PATH.
+#
+# -e/-u are lifted while sourcing: these are vendor scripts written without them
+# in mind. nnal/atb/set_env.sh probes the shell with a bare $ZSH_VERSION, which
+# under `set -u` is an "unbound variable" fatal error.
+set +eu
 for env_script in /usr/local/Ascend/ascend-toolkit/set_env.sh \
                   /usr/local/Ascend/nnal/atb/set_env.sh; do
     if [ -f "$env_script" ]; then
@@ -29,6 +34,7 @@ for env_script in /usr/local/Ascend/ascend-toolkit/set_env.sh \
         . "$env_script"
     fi
 done
+set -eu
 
 rm -rf "$SRC_DIR"
 if [ -n "$REF" ]; then
