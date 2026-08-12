@@ -1,14 +1,15 @@
 # Manually triggered job to patch an already-built multi-arch image by
 # installing a prebuilt MindIE-SD wheel, then re-publishing under a new tag.
 #
-# MindIE-SD is not on PyPI, so wheels are prebuilt and hosted as GitHub Release
-# assets rather than vendored in the repo, and downloaded at image-build time
-# (see patch/Dockerfile.mindie-sd). The patched image differs from its source by
-# a single pip-install layer.
+# The wheels come from the "Build MindIE-SD wheel" workflow (PyPI only ships a
+# cp311/aarch64 build, which fits neither our py3.12 base images nor x86_64).
+# They are hosted as GitHub Release assets rather than vendored in the repo, and
+# downloaded at image-build time (see patch/Dockerfile.mindie-sd). The patched
+# image differs from its source by a single pip-install layer.
 #
 # Both arches are built so the destination stays a multi-arch manifest matching
-# the source. Only an aarch64 wheel is published today, so the amd64 build skips
-# the install instead of failing; set wheel_url_x86_64 once one exists.
+# the source. An arch whose wheel URL is empty skips the install instead of
+# failing.
 #
 # Multi-arch is handled by reusing _build_push_image.yaml: it builds each arch on
 # its native runner, pushes per-arch tags, merges them into one manifest, and
