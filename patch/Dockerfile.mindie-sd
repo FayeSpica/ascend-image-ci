@@ -5,17 +5,19 @@
 #   MINDIE_SD_WHEEL_URL_AARCH64   - wheel to install on arm64
 #   MINDIE_SD_WHEEL_URL_X86_64    - wheel to install on amd64; empty = skip
 #
-# MindIE-SD is not on PyPI and building it from source needs the CANN toolchain,
-# so wheels are prebuilt and hosted as GitHub Release assets, then downloaded
-# here at build time. They are deliberately NOT vendored in the repo: at ~62MB
-# each that would bloat every clone, and Git LFS meters bandwidth per checkout
-# (once per arch runner) whereas public-repo release downloads are unmetered.
+# mindiesd is on PyPI, but ships exactly one file there
+# (mindiesd-3.0.0-cp311-cp311-manylinux_2_34_aarch64.whl): wrong ABI for our
+# py3.12 base images, and no x86_64. So wheels are built by the "Build MindIE-SD
+# wheel" workflow, hosted as GitHub Release assets, and downloaded here at build
+# time. They are deliberately NOT vendored in the repo: at ~62MB each that would
+# bloat every clone, and Git LFS meters bandwidth per checkout (once per arch
+# runner) whereas public-repo release downloads are unmetered.
 #
-# The wheel is picked by `uname -m`, matching the platform tag in its filename.
-# Only an aarch64 wheel exists today, so MINDIE_SD_WHEEL_URL_X86_64 is empty and
-# amd64 skips the install rather than failing -- both arches still build and the
-# multi-arch manifest stays intact. Publishing an x86_64 wheel and setting that
-# arg is all it takes to cover amd64 too.
+# One wheel per arch covers both A2 and A3 -- upstream compiles every compute
+# unit into it in one pass -- so the only selection here is by `uname -m`,
+# matching the platform tag in the wheel's filename. An empty URL for an arch
+# skips the install there rather than failing, so both arches still build and
+# the multi-arch manifest stays intact.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 

@@ -1,0 +1,186 @@
+# Manually triggered job that builds the MindIE-SD wheel from source inside a
+# CANN container and publishes it as a GitHub Release asset.
+#
+# Why build at all, when mindiesd IS published on PyPI: PyPI ships exactly one
+# file, mindiesd-3.0.0-cp311-cp311-manylinux_2_34_aarch64.whl. Our CANN base
+# images are py3.12 (wrong ABI) and we also want x86_64, so neither is covered.
+#
+# The wheel is consumed at image-build time by the "Patch image (MindIE-SD)"
+# workflow (patch/Dockerfile.mindie-sd), which downloads it from the release
+# URL. Release assets are used rather than committing the ~62MB wheel: it would
+# bloat every clone, and Git LFS meters bandwidth per checkout whereas
+# public-repo release downloads are unmetered.
+#
+# NOT split by SoC (A2/A3). Upstream's build/build_ops.sh compiles every compute
+# unit in one pass -- default_compute_unit='ascend910;ascend910b;ascend910_93;
+# ascend950', where ascend910b is A2 and ascend910_93 is A3 -- so a single wheel
+# serves both. Upstream's own docker/omni/Dockerfile.a2.ubuntu and
+# Dockerfile.a3.ubuntu differ only in their FROM line and install the identical
+# package. Hence one CANN image to build in, and architecture is the only
+# dimension: an arm64 and an amd64 runner, yielding linux_aarch64 /
+# linux_x86_64 wheels that share one release tag (their filenames differ by
+# platform tag, so there is no collision).
+name: Build MindIE-SD wheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      arches:
+        description: 'Which architectures to build wheels for'
+        type: choice
+        default: 'arm64+amd64'
+        options:
+          - arm64+amd64
+          - arm64
+          - amd64
+      cann_image:
+        description: 'CANN image to build in. The A3 image is the default only because it is the superset; the wheel it produces is not A3-specific.'
+        type: string
+        default: 'quay.io/ascend/cann:9.1.0-a3-ubuntu22.04-py3.12'
+      mindie_sd_repo:
+        description: 'MindIE-SD git repo to clone'
+        type: string
+        default: 'https://gitcode.com/Ascend/MindIE-SD.git'
+      mindie_sd_ref:
+        description: 'MindIE-SD ref (branch/tag/commit); empty = default branch'
+        type: string
+        default: ''
+      release_tag:
+        description: 'Override the release tag. Empty = mindiesd-<version>, derived from the built wheel.'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  prep:
+    name: Resolve architectures
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - name: Build matrix from arches
+        id: m
+        env:
+          ARCHES: ${{ inputs.arches }}
+        run: |
+          set -euo pipefail
+          # A matrix cannot be filtered per-entry with `if`, so it is built here
+          # and consumed via fromJSON. if/fi rather than `[[ ]] && ...`: under
+          # `set -e` a false test would make the whole step exit non-zero.
+          # 'arm64' does not substring-match 'amd64', so globs are enough.
+          entries=()
+          if [[ "$ARCHES" == *arm64* ]]; then
+            entries+=("$(jq -cn '{arch:"arm64",runner:"ubuntu-22.04-arm"}')")
+          fi
+          if [[ "$ARCHES" == *amd64* ]]; then
+            entries+=("$(jq -cn '{arch:"amd64",runner:"ubuntu-latest"}')")
+          fi
+          matrix="{\"target\":[$(IFS=,; echo "${entries[*]}")]}"
+          echo "$matrix" | jq .
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build wheel (${{ matrix.target.arch }})
+    needs: prep
+    # Native runner per arch -- no QEMU. The wheel's platform tag follows from
+    # the runner (aarch64 / x86_64).
+    runs-on: ${{ matrix.target.runner }}
+    permissions:
+      contents: write   # create the release and upload the wheel to it
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prep.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          docker-images: false
+
+      # The build runs in the CANN image rather than on the runner because it
+      # needs that image's toolchain; the runner only supplies the script and
+      # collects the wheel from the bind-mounted output dir.
+      - name: Build wheel in ${{ inputs.cann_image }}
+        env:
+          CANN_IMAGE: ${{ inputs.cann_image }}
+          MINDIE_SD_REPO: ${{ inputs.mindie_sd_repo }}
+          MINDIE_SD_REF: ${{ inputs.mindie_sd_ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # --entrypoint: the CANN images may define one, in which case a bare
+          # `docker run <img> bash ...` would append to it instead of replacing it.
+          docker run --rm \
+            --entrypoint bash \
+            -v "${PWD}/scripts/build-mindie-sd.sh:/build-mindie-sd.sh:ro" \
+            -v "${PWD}/out:/out" \
+            "${CANN_IMAGE}" \
+            /build-mindie-sd.sh "${MINDIE_SD_REPO}" "${MINDIE_SD_REF}"
+
+      - name: Resolve wheel and release tag
+        id: whl
+        env:
+          TAG_IN: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          whl=$(find out -maxdepth 1 -name 'mindiesd-*.whl' | sort | head -1)
+          if [[ -z "$whl" ]]; then
+            echo "::error::no wheel produced in out/"
+            exit 1
+          fi
+          # mindiesd-<version>-<pytag>-<abitag>-<platform>.whl
+          base="$(basename "$whl")"
+          version="$(echo "$base" | cut -d- -f2)"
+          echo "wheel=${whl}" >> "$GITHUB_OUTPUT"
+          echo "wheel_name=${base}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG_IN:-mindiesd-${version}}" >> "$GITHUB_OUTPUT"
+          ls -l "$whl"
+
+      - name: Publish to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.whl.outputs.tag }}
+          WHEEL: ${{ steps.whl.outputs.wheel }}
+          WHEEL_NAME: ${{ steps.whl.outputs.wheel_name }}
+          ARCH: ${{ matrix.target.arch }}
+          CANN_IMAGE: ${{ inputs.cann_image }}
+          REPO_IN: ${{ inputs.mindie_sd_repo }}
+          REF_IN: ${{ inputs.mindie_sd_ref }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # Assembled with printf rather than a multi-line literal: a line at
+            # column 0 would terminate this YAML block scalar early.
+            notes=$(printf '%s\n\n%s\n' \
+              "Prebuilt MindIE-SD wheels, consumed at image-build time by the \"Patch image (MindIE-SD)\" workflow. One wheel per architecture; both cover A2 and A3, since the ops are compiled for every compute unit in one pass." \
+              "Built by \`.github/workflows/build_mindie_sd_wheel.yaml\` in \`${CANN_IMAGE}\`, from \`${REPO_IN}\` (ref: \`${REF_IN:-default branch}\`). The tik_ops build step is skipped.")
+            # --latest=false so these asset-hosting releases never take over the
+            # repo's "Latest release" slot. `|| true`: the arm64 and amd64 jobs
+            # share a release tag and can race here -- the loser just finds it
+            # created.
+            gh release create "$TAG" \
+              --target "${GITHUB_SHA}" \
+              --title "MindIE-SD ${TAG#mindiesd-}" \
+              --latest=false \
+              --notes "$notes" || true
+          fi
+          gh release view "$TAG" >/dev/null
+          gh release upload "$TAG" "$WHEEL" --clobber
+
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/${WHEEL_NAME}"
+          {
+            echo "### ${ARCH}: \`${WHEEL_NAME}\`"
+            echo
+            echo "Built in \`${CANN_IMAGE}\`"
+            echo
+            echo "Use it in **Patch image (MindIE-SD)**:"
+            echo
+            echo '```'
+            echo "${url}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
