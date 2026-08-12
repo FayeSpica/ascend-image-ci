@@ -1,14 +1,18 @@
-# Manually triggered job to patch an already-built multi-arch image by building
-# MindIE-SD from source and installing the wheel, then re-publishing under a
-# new tag.
+# Manually triggered job to patch an already-built multi-arch image by
+# installing a prebuilt MindIE-SD wheel, then re-publishing under a new tag.
 #
-# MindIE-SD is not on PyPI, so it has to be cloned from gitcode and built with
-# `python setup.py bdist_wheel`. Its tik_ops build step is commented out first
-# (not needed here, and it dominates build time) — see patch/build-mindie-sd.sh.
+# MindIE-SD is not on PyPI, so wheels are prebuilt and hosted as GitHub Release
+# assets rather than vendored in the repo, and downloaded at image-build time
+# (see patch/Dockerfile.mindie-sd). The patched image differs from its source by
+# a single pip-install layer.
+#
+# Both arches are built so the destination stays a multi-arch manifest matching
+# the source. Only an aarch64 wheel is published today, so the amd64 build skips
+# the install instead of failing; set wheel_url_x86_64 once one exists.
 #
 # Multi-arch is handled by reusing _build_push_image.yaml: it builds each arch on
 # its native runner, pushes per-arch tags, merges them into one manifest, and
-# prunes the interim tags. The patch itself is patch/Dockerfile.mindie-sd.
+# prunes the interim tags.
 #
 # Required configuration (repo Settings -> Secrets and variables -> Actions):
 #   Variable QUAY_USERNAME / Secret QUAY_PASSWORD -> read source + write dest
@@ -28,13 +32,13 @@ on:
         required: true
         type: string
         default: 'quay.io/fayeomni/vllm-ascend:v0.23.0-main-mindiesd'
-      mindie_sd_repo:
-        description: 'MindIE-SD git repo to clone'
+      wheel_url_aarch64:
+        description: 'MindIE-SD wheel URL for arm64'
         required: false
         type: string
-        default: 'https://gitcode.com/Ascend/MindIE-SD.git'
-      mindie_sd_ref:
-        description: 'MindIE-SD ref (branch/tag/commit); empty = default branch'
+        default: 'https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_aarch64.whl'
+      wheel_url_x86_64:
+        description: 'MindIE-SD wheel URL for amd64; leave empty to skip the install there'
         required: false
         type: string
         default: ''
@@ -67,12 +71,13 @@ jobs:
           echo "tag=${DST##*:}" >> "$GITHUB_OUTPUT"     # everything after the last ':'
 
   patch:
-    name: Build MindIE-SD and re-publish
+    name: Install MindIE-SD and re-publish
     needs: prep
     uses: ./.github/workflows/_build_push_image.yaml
     with:
-      # Build context is THIS repo (holds patch/Dockerfile.mindie-sd and the
-      # build script); the image being patched comes in via BASE_IMAGE / FROM.
+      # Build context is THIS repo (holds patch/Dockerfile.mindie-sd); the image
+      # being patched comes in via BASE_IMAGE / FROM, and the wheel is fetched
+      # from its release URL inside the build.
       source_repo: ${{ github.repository }}
       source_ref: ${{ github.sha }}
       dockerfile: patch/Dockerfile.mindie-sd
@@ -81,6 +86,6 @@ jobs:
       artifact_key: patch-mindie-sd
       build_args: |
         BASE_IMAGE=${{ inputs.source_image }}
-        MINDIE_SD_REPO=${{ inputs.mindie_sd_repo }}
-        MINDIE_SD_REF=${{ inputs.mindie_sd_ref }}
+        MINDIE_SD_WHEEL_URL_AARCH64=${{ inputs.wheel_url_aarch64 }}
+        MINDIE_SD_WHEEL_URL_X86_64=${{ inputs.wheel_url_x86_64 }}
     secrets: inherit
