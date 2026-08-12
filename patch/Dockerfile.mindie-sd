@@ -22,7 +22,7 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
 ARG MINDIE_SD_WHEEL_URL_AARCH64=https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_aarch64.whl
-ARG MINDIE_SD_WHEEL_URL_X86_64=
+ARG MINDIE_SD_WHEEL_URL_X86_64=https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_x86_64.whl
 
 # The download keeps the URL's original filename because pip parses a wheel's
 # name/version/tags out of it and rejects anything off-convention.
