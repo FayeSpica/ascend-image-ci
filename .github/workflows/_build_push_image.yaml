@@ -74,6 +74,11 @@ jobs:
           repository: ${{ inputs.source_repo }}
           ref: ${{ inputs.source_ref }}
           fetch-depth: 0
+          # vllm-ascend's build_aclnn.sh needs the catlass submodule sources in
+          # the build context: it only falls back to `git submodule update`
+          # when csrc/third_party/catlass is missing, and that fallback always
+          # fails because .dockerignore excludes .git/.
+          submodules: recursive
 
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
