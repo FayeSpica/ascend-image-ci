@@ -168,6 +168,10 @@ jobs:
       build_args: |
         VLLM_TAG=${{ inputs.vllm_tag }}
         VLLM_COMMIT=${{ needs.prep.outputs.vllm_commit }}
+        # The Dockerfiles default PIP_INDEX_URL/MOONCAKE_INDEX_URL to Chinese
+        # mirrors (tuna/aliyun) that 403 GitHub-hosted runner IPs; use PyPI.
+        PIP_INDEX_URL=https://pypi.org/simple
+        MOONCAKE_INDEX_URL=https://pypi.org/simple
     secrets: inherit
 
   omni:
