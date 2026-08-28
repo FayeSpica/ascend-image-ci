@@ -9,7 +9,7 @@ multi-arch manifests to `quay.io/fayeomni/*`:
 
 | Image | Source repo | Dockerfiles | Tag scheme |
 |-------|-------------|-------------|------------|
-| `vllm-ascend` | [`vllm-project/vllm-ascend`](https://github.com/vllm-project/vllm-ascend) | `Dockerfile`, `Dockerfile.a3` | `<vllm_tag>-<ascend_ref>[-a3]` |
+| `vllm-ascend` | [`vllm-project/vllm-ascend`](https://github.com/vllm-project/vllm-ascend) | `Dockerfile`, `Dockerfile.a3`, `Dockerfile.310p`, `Dockerfile.a5` | `<vllm_tag>-<ascend_ref>[-a3|-310p|-a5]` |
 | `vllm-omni` | [`vllm-project/vllm-omni`](https://github.com/vllm-project/vllm-omni) | `docker/Dockerfile.npu`, `docker/Dockerfile.npu.a3` | `<vllm_tag>-<ascend_ref>-omni-<omni_ref>[-a3]` |
 
 ## Dependency chain
