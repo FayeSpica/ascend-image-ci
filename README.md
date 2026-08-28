@@ -12,6 +12,19 @@ multi-arch manifests to `quay.io/fayeomni/*`:
 | `vllm-ascend` | [`vllm-project/vllm-ascend`](https://github.com/vllm-project/vllm-ascend) | `Dockerfile`, `Dockerfile.a3`, `Dockerfile.310p`, `Dockerfile.a5` | `<vllm_tag>-<ascend_ref>[-a3|-310p|-a5]` |
 | `vllm-omni` | [`vllm-project/vllm-omni`](https://github.com/vllm-project/vllm-omni) | `docker/Dockerfile.npu`, `docker/Dockerfile.npu.a3` | `<vllm_tag>-<ascend_ref>-omni-<omni_ref>[-a3]` |
 
+### Temporary: omni 310p/A5 images
+
+Upstream vllm-omni has no 310p/a5 NPU Dockerfiles yet, so temporary ones live
+in this repo (`docker/vllm-omni/Dockerfile.npu.ci.310p`,
+`docker/vllm-omni/Dockerfile.npu.ci.a5`) and clone vllm-omni at build time.
+The temporary **Build Omni 310p/A5 images (temporary)** workflow
+(`build_omni_310p_a5_images.yaml`) builds them FROM the matching vllm-ascend
+variant tags and publishes
+`<vllm_ascend_base_tag>-omni-<omni_ref>-310p` / `-a5`. Once upstream ships
+`docker/Dockerfile.npu.310p` / `.a5`, delete that workflow and those
+Dockerfiles and fold the variants into the omni matrix in
+`build_images.yaml`.
+
 ## Dependency chain
 
 `vllm-omni`'s NPU image is built `FROM` the `vllm-ascend` image
