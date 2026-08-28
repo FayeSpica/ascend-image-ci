@@ -8,8 +8,8 @@
 # base. To build omni alone against an existing ascend image, leave ascend
 # unselected and set `vllm_ascend_base_tag`.
 #
-# Published tags (suffix '-a3' for the A3 variant):
-#   vllm-ascend: <vllm_tag>-<ascend_ref>[-a3]
+# Published tags (suffix '-a3' / '-310p' / '-a5' per variant):
+#   vllm-ascend: <vllm_tag>-<ascend_ref>[-a3|-310p|-a5]
 #   vllm-omni:   <vllm_tag>-<ascend_ref>-omni-<omni_ref>[-a3]
 name: Build Ascend/Omni images
 
@@ -151,6 +151,12 @@ jobs:
           - dockerfile: Dockerfile.a3
             suffix: '-a3'
             key: ascend-a3
+          - dockerfile: Dockerfile.310p
+            suffix: '-310p'
+            key: ascend-310p
+          - dockerfile: Dockerfile.a5
+            suffix: '-a5'
+            key: ascend-a5
     uses: ./.github/workflows/_build_push_image.yaml
     with:
       source_repo: vllm-project/vllm-ascend
