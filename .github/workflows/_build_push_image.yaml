@@ -43,6 +43,11 @@ on:
         required: false
         type: string
         default: '.'
+      max_jobs:
+        description: 'If set, inject ENV MAX_JOBS=<n> after every FROM to cap compile parallelism (setup.py reads MAX_JOBS). Use for variants whose kernel builds OOM the runner.'
+        required: false
+        type: string
+        default: ''
     secrets:
       QUAY_PASSWORD:
         description: 'Quay password/token for pushing images'
@@ -95,6 +100,18 @@ jobs:
           registry: quay.io
           username: ${{ vars.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+
+      # Some variants (e.g. Ascend 950/a5) compile enough custom kernels to
+      # exhaust the GitHub-hosted runner's memory at full nproc parallelism,
+      # which kills the runner mid-build ("runner has received a shutdown
+      # signal"). vllm-ascend's setup.py reads MAX_JOBS from the environment,
+      # so inject an ENV into the Dockerfile to cap compile parallelism.
+      - name: Cap build parallelism (MAX_JOBS=${{ inputs.max_jobs }})
+        if: ${{ inputs.max_jobs != '' }}
+        run: |
+          set -euo pipefail
+          sed -i '/^FROM /a ENV MAX_JOBS=${{ inputs.max_jobs }}' "${{ inputs.dockerfile }}"
+          grep -n 'MAX_JOBS' "${{ inputs.dockerfile }}"
 
       # Push to a per-arch tag (not push-by-digest): Quay garbage-collects
       # untagged digests, which can race with slow builds and break the merge.
