@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: ''
+      patches:
+        description: 'Optional comma-separated PR numbers against source_repo to apply as a temporary patch before building (each fetched from https://github.com/<source_repo>/pull/<n>.diff and git-applied to the checkout). Empty = no patch.'
+        required: false
+        type: string
+        default: ''
     secrets:
       QUAY_PASSWORD:
         description: 'Quay password/token for pushing images'
@@ -84,6 +89,29 @@ jobs:
           # when csrc/third_party/catlass is missing, and that fallback always
           # fails because .dockerignore excludes .git/.
           submodules: recursive
+
+      # Optional temporary patch: bake an upstream PR's diff into the checked-out
+      # source before the build. Each PR number is resolved against source_repo
+      # (github.com/<source_repo>/pull/<n>.diff) and applied with git apply. The
+      # build aborts loudly if a patch does not apply cleanly.
+      - name: Apply temporary patches
+        if: ${{ inputs.patches != '' }}
+        env:
+          SRC_REPO: ${{ inputs.source_repo }}
+          PATCHES: ${{ inputs.patches }}
+        run: |
+          set -euo pipefail
+          # Accept a comma- or newline-separated list (the YAML string arrives as
+          # a single line; split on comma). Trim whitespace per entry.
+          IFS=',' read -ra nums <<< "${PATCHES}"
+          for n in "${nums[@]}"; do
+            n="$(printf '%s' "$n" | tr -d '[:space:]')"
+            [[ -z "$n" ]] && continue
+            url="https://github.com/${SRC_REPO}/pull/${n}.diff"
+            echo "Applying temporary patch: ${url}"
+            curl -fsSL "${url}" | git apply -v -
+            echo "Applied ${url}"
+          done
 
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1

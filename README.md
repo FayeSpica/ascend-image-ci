@@ -54,6 +54,24 @@ gh workflow run build_images.yaml \
   -f vllm_ascend_base_tag=v0.23.0-main
 ```
 
+### Temporary patch
+
+Optionally apply one or more vllm-ascend PRs to the checked-out source before
+building. Pass comma-separated PR numbers; each is fetched from
+`https://github.com/vllm-project/vllm-ascend/pull/<n>.diff` and applied with
+`git apply`. The build fails loudly if a patch does not apply cleanly.
+Patched builds publish under a `-patch<N>` tag fragment so they don't
+clobber the pristine `<vllm_tag>-<ascend_ref>` image.
+
+```bash
+# build vllm-ascend at a PR ref with an extra temporary patch (PR 15321)
+gh workflow run build_images.yaml \
+  -f targets=ascend \
+  -f vllm_tag=v0.28.0 \
+  -f ascend_ref=refs/pull/14898/head \
+  -f patch_refs=15321
+```
+
 ## Required configuration
 
 In repo `Settings → Secrets and variables → Actions`:

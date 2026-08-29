@@ -36,6 +36,10 @@ on:
         description: 'vllm-ascend ref to checkout (branch/tag/commit, or a PR ref like refs/pull/11709/head)'
         type: string
         default: 'main'
+      patch_refs:
+        description: 'Optional comma-separated vllm-ascend PR numbers to apply as a temporary patch during the build (e.g. 15321). Each is fetched from https://github.com/vllm-project/vllm-ascend/pull/<n>.diff and git-applied to the checkout. Patched builds publish under a -patch<N> tag fragment. Empty = no patch.'
+        type: string
+        default: ''
       omni_ref:
         description: 'vllm-omni ref to checkout (branch/tag/commit, or a PR ref like refs/pull/123/head)'
         type: string
@@ -79,6 +83,7 @@ jobs:
           VLLM_TAG: ${{ inputs.vllm_tag }}
           VLLM_COMMIT_IN: ${{ inputs.vllm_commit }}
           ASCEND_REF: ${{ inputs.ascend_ref }}
+          PATCH_REFS_IN: ${{ inputs.patch_refs }}
           OMNI_REF: ${{ inputs.omni_ref }}
           BASE_TAG: ${{ inputs.vllm_ascend_base_tag }}
           OMNI_TAG_IN: ${{ inputs.omni_tag }}
@@ -122,7 +127,14 @@ jobs:
           if [[ "$TARGETS" == *ascend* ]]; then echo "build_ascend=true"; else echo "build_ascend=false"; fi >> "$GITHUB_OUTPUT"
           if [[ "$TARGETS" == *omni* ]];   then echo "build_omni=true";   else echo "build_omni=false";   fi >> "$GITHUB_OUTPUT"
 
-          ASCEND_TAG="${V}-${A}"
+          # A temporary patch changes the build output, so give patched builds a
+          # distinct tag (<vllm_tag>-<ascend_ref>-patch<N>[...]) instead of
+          # silently clobbering the pristine <vllm_tag>-<ascend_ref> image.
+          PATCH_FRAG=""
+          if [[ -n "${PATCH_REFS_IN}" ]]; then
+            PATCH_FRAG="-patch$(printf '%s' "${PATCH_REFS_IN}" | tr ',' '-' | tr -d '[:space:]')"
+          fi
+          ASCEND_TAG="${V}-${A}${PATCH_FRAG}"
           echo "ascend_tag=${ASCEND_TAG}" >> "$GITHUB_OUTPUT"
 
           if [[ -n "$OMNI_TAG_IN" ]]; then
@@ -172,6 +184,7 @@ jobs:
       image_tag: ${{ needs.prep.outputs.ascend_tag }}${{ matrix.variant.suffix }}
       artifact_key: ${{ matrix.variant.key }}
       max_jobs: ${{ matrix.variant.max_jobs }}
+      patches: ${{ inputs.patch_refs }}
       build_args: |
         VLLM_TAG=${{ inputs.vllm_tag }}
         VLLM_COMMIT=${{ needs.prep.outputs.vllm_commit }}
