@@ -14,8 +14,7 @@ ARG PATCH_310P_TRITON_RESIDUE=0
 
 RUN if [[ "${PATCH_310P_TRITON_RESIDUE}" == "1" ]]; then \
         python3 -c 'import shutil, site; from pathlib import Path; [shutil.rmtree(Path(root) / "triton", ignore_errors=True) for root in site.getsitepackages()]' && \
-        python3 -c 'import importlib.util; assert importlib.util.find_spec("triton") is None' && \
-        python3 -c 'import torch'; \
+        python3 -c 'import importlib.util; assert importlib.util.find_spec("triton") is None'; \
     fi
 
 RUN apt-get update && \
@@ -39,6 +38,7 @@ WORKDIR ${APP_DIR}
 RUN source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
     source /usr/local/Ascend/nnal/atb/set_env.sh && \
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/Ascend/ascend-toolkit/latest/`uname -i`-linux/devlib && \
+    if [[ "${PATCH_310P_TRITON_RESIDUE}" == "1" ]]; then python3 -c 'import torch'; fi && \
     python3 -m pip install -U pip && \
     python3 -m pip install -v \
       "pytest>=7.0.0" \
