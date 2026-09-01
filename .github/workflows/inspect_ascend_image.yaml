@@ -1,0 +1,116 @@
+name: Inspect Ascend image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Container image repository'
+        type: string
+        required: true
+        default: 'quay.io/fayeomni/vllm-ascend'
+      tag:
+        description: 'Container image tag'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: inspect (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+            platform: linux/arm64
+    steps:
+      - name: Login to Quay
+        uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ vars.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Pull image
+        env:
+          IMAGE: ${{ inputs.image }}
+          TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ matrix.platform }}
+        run: docker pull --platform "${PLATFORM}" "${IMAGE}:${TAG}"
+
+      - name: Inspect Python and Triton state
+        env:
+          IMAGE: ${{ inputs.image }}
+          TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm --platform "${PLATFORM}" --entrypoint /bin/bash \
+            "${IMAGE}:${TAG}" -lc '
+              set -u
+              uname -m
+              python3 --version
+
+              echo "DISTRIBUTIONS"
+              python3 -m pip list --format=freeze | grep -Ei "^(torch|triton|vllm)" || true
+              python3 -m pip show triton triton-ascend || true
+              python3 -m pip check || true
+
+              echo "MODULES"
+              TORCH_DEVICE_BACKEND_AUTOLOAD=0 python3 - <<"PY"
+          import importlib.metadata as metadata
+          import importlib.util
+          import pathlib
+
+          for name in ("triton", "triton.language", "torch", "torch_npu"):
+              try:
+                  spec = importlib.util.find_spec(name)
+                  print(f"{name}: spec={spec}")
+                  if spec is not None:
+                      print(f"{name}: origin={spec.origin} locations={spec.submodule_search_locations}")
+              except Exception as exc:
+                  print(f"{name}: find_spec_error={type(exc).__name__}: {exc}")
+
+          try:
+              import triton
+              print("triton.__file__=" + repr(getattr(triton, "__file__", None)))
+              print("triton.__path__=" + repr(list(getattr(triton, "__path__", []))))
+              print("triton.language_present=" + repr(hasattr(triton, "language")))
+          except Exception as exc:
+              print(f"triton.import_error={type(exc).__name__}: {exc}")
+
+          for dist in metadata.distributions():
+              dist_name = dist.metadata.get("Name", "")
+              if "triton" in dist_name.lower():
+                  print(f"distribution={dist_name} version={dist.version} path={dist._path}")
+
+          for root in map(pathlib.Path, __import__("site").getsitepackages()):
+              for path in sorted(root.glob("*triton*")):
+                  print(f"filesystem={path}")
+                  if path.is_dir():
+                      for child in sorted(path.iterdir()):
+                          print(f"filesystem_child={child}")
+          PY
+
+              echo "TORCH_AUTOLOAD"
+              python3 - <<"PY"
+          try:
+              import torch
+              print(f"torch_import=ok version={torch.__version__}")
+          except Exception as exc:
+              print(f"torch_import=error {type(exc).__name__}: {exc}")
+              raise
+          PY
+            '
+
+      - name: Inspect image history
+        env:
+          IMAGE: ${{ inputs.image }}
+          TAG: ${{ inputs.tag }}
+        run: docker history --no-trunc "${IMAGE}:${TAG}"
