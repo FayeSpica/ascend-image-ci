@@ -244,6 +244,27 @@
         return [...document.querySelectorAll(".hardware-filter:checked")].map((input) => input.value);
       }
 
+      function restoreFiltersFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const hardware = params.get("hardware");
+        if (hardware !== null) {
+          const selected = new Set(hardware.split(",").filter((value) => HARDWARE.includes(value)));
+          document.querySelectorAll(".hardware-filter").forEach((input) => { input.checked = selected.has(input.value); });
+        }
+        $("searchInput").value = params.get("search") || "";
+      }
+
+      function syncFiltersToUrl() {
+        const url = new URL(location.href);
+        const selected = selectedHardware();
+        const search = $("searchInput").value.trim();
+        if (selected.length === HARDWARE.length) url.searchParams.delete("hardware");
+        else url.searchParams.set("hardware", selected.join(","));
+        if (search) url.searchParams.set("search", search);
+        else url.searchParams.delete("search");
+        history.replaceState(null, "", url);
+      }
+
       function render() {
         const loaded = Boolean(state.config);
         for (const id of ["downloadButton", "saveButton", "searchInput", "addModelButton", "addDatasetButton"]) $(id).disabled = !loaded;
@@ -457,14 +478,16 @@
       $("downloadButton").addEventListener("click", downloadFile);
       $("addModelButton").addEventListener("click", () => openResourceDialog(null, "model"));
       $("addDatasetButton").addEventListener("click", () => openResourceDialog(null, "dataset"));
-      $("searchInput").addEventListener("input", render);
-      document.querySelectorAll(".hardware-filter").forEach((input) => input.addEventListener("change", render));
+      $("searchInput").addEventListener("input", () => { render(); syncFiltersToUrl(); });
+      document.querySelectorAll(".hardware-filter").forEach((input) => input.addEventListener("change", () => { render(); syncFiltersToUrl(); }));
       $("modelForm").addEventListener("submit", submitResource);
       $("cancelDialog").addEventListener("click", () => $("modelDialog").close());
       $("workspace").addEventListener("dragover", (e) => { e.preventDefault(); $("workspace").classList.add("drop-active"); });
       $("workspace").addEventListener("dragleave", () => $("workspace").classList.remove("drop-active"));
       $("workspace").addEventListener("drop", (e) => { e.preventDefault(); $("workspace").classList.remove("drop-active"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
       window.addEventListener("beforeunload", (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
+      window.addEventListener("popstate", () => { restoreFiltersFromUrl(); render(); });
+      restoreFiltersFromUrl();
       loadDefaultConfig();
     </script>
   </body>
