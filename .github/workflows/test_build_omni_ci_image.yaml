@@ -1,5 +1,6 @@
 # Validation workflow: test-build the vllm-omni NPU CI image
-# (docker/vllm-omni/Dockerfile.npu.ci.a3) to confirm it builds successfully.
+# (docker/vllm-omni/Dockerfile.npu) against an A3 base image to confirm it
+# builds successfully.
 #
 # The Dockerfile clones vllm-omni at build time (default branch: main) instead
 # of COPYing a local context, so the build context here is just this repo.
@@ -25,7 +26,7 @@ on:
         default: 'main'
   pull_request:
     paths:
-      - 'docker/vllm-omni/Dockerfile.npu.ci.a3'
+      - 'docker/vllm-omni/Dockerfile.npu'
       - '.github/workflows/test_build_omni_ci_image.yaml'
 
 permissions:
@@ -60,7 +61,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: docker/vllm-omni/Dockerfile.npu.ci.a3
+          file: docker/vllm-omni/Dockerfile.npu
           platforms: linux/arm64
           push: true
           provenance: false

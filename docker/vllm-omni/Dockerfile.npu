@@ -1,15 +1,8 @@
-# Temporary CI Dockerfile for vllm-omni on Ascend 310P.
-# Upstream vllm-omni has no 310p NPU Dockerfile yet (only
-# docker/Dockerfile.npu / docker/Dockerfile.npu.a3), so this lives here until
-# one lands upstream as docker/Dockerfile.npu.310p — then delete this
-# file and build_omni_310p_a5_images.yaml, and fold the variant into the
-# omni matrix in build_images.yaml.
-#
-# Built by .github/workflows/build_omni_310p_a5_images.yaml with this repo as
-# the build context; the vllm-omni source is cloned at build time.
-ARG VLLM_ASCEND_IMAGE=quay.io/fayeomni/vllm-ascend
-ARG VLLM_ASCEND_TAG=v0.23.0-main-310p
+ARG VLLM_ASCEND_IMAGE=quay.io/atlas-ci/vllm-ascend
+ARG VLLM_ASCEND_TAG=v0.23.0
 FROM ${VLLM_ASCEND_IMAGE}:${VLLM_ASCEND_TAG}
+
+SHELL ["/bin/bash", "-c"]
 
 ARG APP_DIR=/vllm-workspace/vllm-omni
 # Source of the vllm-omni repo to clone into the image (instead of COPY .).
@@ -47,10 +40,23 @@ RUN source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
       "psutil>=7.2.0" \
       "soundfile>=0.13.1" \
       "pyttsx3>=2.99" \
+      "opencc==1.4.1" \
       "opencv-python>=4.12.0.88" \
       "imageio[ffmpeg]>=0.6.0" \
+      "jiwer>=3.0.0" \
+      "zhon>=2.0.0" \
+      "zhconv>=1.4.2" \
+      "funasr>=1.0.0" \
+      "hyperpyyaml>=1.2.0" \
+      "onnx>=1.16.0" \
+      "librosa>=0.10.0" \
+      "datasets>=3.0.0" \
       --default-timeout=60 && \
     python3 -m pip install -v -e /vllm-workspace/vllm-omni/ --no-build-isolation \
+      --default-timeout=60 && \
+    python3 -m pip install -v --no-deps \
+      "s3tokenizer>=0.3.0" \
+      "step-audio2>=1.0.0" \
       --default-timeout=60
 
 ENV VLLM_WORKER_MULTIPROC_METHOD=spawn

@@ -1,0 +1,62 @@
+# Manually build vllm-omni images for every supported Ascend variant.
+# The Dockerfile is kept in this repository and clones vllm-omni at build time.
+name: Build Omni images
+
+on:
+  workflow_dispatch:
+    inputs:
+      omni_ref:
+        description: 'vllm-omni branch or tag to clone into the image'
+        type: string
+        required: true
+        default: 'main'
+      vllm_ascend_image:
+        description: 'Base vllm-ascend image repository'
+        type: string
+        required: true
+        default: 'quay.io/fayeomni/vllm-ascend'
+      vllm_ascend_base_tag:
+        description: 'Base vllm-ascend tag without the variant suffix'
+        type: string
+        required: true
+      omni_image:
+        description: 'Target vllm-omni image repository'
+        type: string
+        required: true
+        default: 'quay.io/fayeomni/vllm-omni'
+      omni_tag:
+        description: 'Target vllm-omni tag without the variant suffix'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  omni:
+    name: vllm-omni (${{ matrix.variant.key }})
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - key: omni-a2
+            suffix: ''
+          - key: omni-a3
+            suffix: '-a3'
+          - key: omni-a5
+            suffix: '-a5'
+          - key: omni-310p
+            suffix: '-310p'
+    uses: ./.github/workflows/_build_push_image.yaml
+    with:
+      source_repo: ${{ github.repository }}
+      source_ref: ${{ github.sha }}
+      dockerfile: docker/vllm-omni/Dockerfile.npu
+      image: ${{ inputs.omni_image }}
+      image_tag: ${{ inputs.omni_tag }}${{ matrix.variant.suffix }}
+      artifact_key: ${{ matrix.variant.key }}
+      build_args: |
+        VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image }}
+        VLLM_ASCEND_TAG=${{ inputs.vllm_ascend_base_tag }}${{ matrix.variant.suffix }}
+        VLLM_OMNI_REF=${{ inputs.omni_ref }}
+    secrets: inherit
