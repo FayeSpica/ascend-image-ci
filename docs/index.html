@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Omni 模型矩阵</title>
+    <style>
+      :root {
+        --ink: #172126;
+        --muted: #65747b;
+        --paper: #f5f7f7;
+        --panel: #ffffff;
+        --line: #dce3e5;
+        --a2: #287c7b;
+        --a3: #3971b8;
+        --a5: #7a5ab5;
+        --p310: #ad5a3d;
+        --danger: #ad3d43;
+        --shadow: 0 18px 48px rgba(24, 49, 57, 0.09);
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+
+      .shell { max-width: 1440px; margin: 0 auto; padding: 32px 32px 56px; }
+      .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+      .eyebrow { margin: 0 0 9px; color: var(--muted); font: 700 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .13em; text-transform: uppercase; }
+      h1 { margin: 0; font: 680 clamp(28px, 4vw, 46px)/1.05 "Arial Narrow", "Aptos Narrow", sans-serif; letter-spacing: -.035em; }
+      .lede { max-width: 620px; margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
+
+      .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+      .button { min-height: 40px; padding: 0 15px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); font-weight: 700; box-shadow: 0 2px 0 rgba(23,33,38,.03); }
+      .button:hover { border-color: #aebbc0; transform: translateY(-1px); }
+      .button.primary { border-color: var(--ink); background: var(--ink); color: white; }
+      .button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
+      .button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(57,113,184,.25); outline-offset: 2px; }
+
+      .hardware-rail { display: grid; grid-template-columns: repeat(4, 1fr); position: relative; margin: 0 0 18px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); box-shadow: var(--shadow); }
+      .hardware-rail::before { content: ""; position: absolute; top: 34px; left: 12.5%; right: 12.5%; height: 1px; background: var(--line); }
+      .hardware { position: relative; min-height: 84px; padding: 17px 18px 14px; border-right: 1px solid var(--line); cursor: pointer; transition: opacity .16s ease, background .16s ease; }
+      .hardware:last-child { border-right: 0; }
+      .hardware-head { display: flex; align-items: center; gap: 9px; }
+      .hardware-filter { width: 16px; height: 16px; margin: 0 0 0 auto; accent-color: currentColor; }
+      .hardware:has(.hardware-filter:not(:checked)) { opacity: .42; background: #f2f4f4; }
+      .node { width: 10px; height: 10px; border: 2px solid var(--panel); border-radius: 50%; box-shadow: 0 0 0 1px currentColor; background: currentColor; z-index: 1; }
+      .hardware strong { font: 760 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .hardware span { display: block; margin: 13px 0 0 19px; color: var(--muted); font-size: 12px; }
+      .hardware[data-key="a2"] { color: var(--a2); }
+      .hardware[data-key="a3"] { color: var(--a3); }
+      .hardware[data-key="a5"] { color: var(--a5); }
+      .hardware[data-key="310p"] { color: var(--p310); }
+
+      .workspace { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); box-shadow: var(--shadow); }
+      .toolbar { padding: 14px; border-bottom: 1px solid var(--line); }
+      .search { width: 100%; min-height: 40px; padding: 0 13px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfc; }
+      .filter { min-height: 40px; padding: 0 35px 0 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfc; }
+      .summary { display: flex; flex-wrap: wrap; gap: 22px; padding: 11px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .summary b { color: var(--ink); }
+      .resource-section + .resource-section { border-top: 10px solid var(--paper); }
+      .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 16px 12px; border-bottom: 1px solid var(--line); }
+      .section-heading h2 { margin: 0; font: 760 18px/1.1 "Arial Narrow", "Aptos Narrow", sans-serif; letter-spacing: -.015em; }
+      .section-heading h2 span { margin-left: 7px; color: var(--muted); font: 650 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; min-width: 900px; border-collapse: collapse; }
+      th { padding: 11px 14px; border-bottom: 1px solid var(--line); background: #f8fafa; color: var(--muted); font: 700 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+      th.hw, td.hw { width: 76px; text-align: center; }
+      th.hw-muted, td.hw-muted { opacity: .3; background: #f4f6f6; }
+      th.action, td.action { width: 70px; text-align: right; }
+      td { padding: 13px 14px; border-bottom: 1px solid #edf1f2; vertical-align: middle; }
+      tr:last-child td { border-bottom: 0; }
+      tbody tr:hover { background: #fafcfc; }
+      .model-name { font-weight: 750; word-break: break-word; }
+      .model-meta { margin-top: 4px; color: var(--muted); font: 500 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .repo-id { color: var(--ink); font: 700 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
+      .command { display: inline-flex; align-items: center; max-width: 100%; gap: 7px; padding: 6px 7px 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: #f7f9f9; }
+      .command code { overflow: hidden; color: #425159; font: 500 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      .copy-button { flex: 0 0 auto; padding: 4px 7px; border: 0; border-radius: 5px; background: white; color: var(--muted); font-size: 11px; font-weight: 750; box-shadow: 0 0 0 1px var(--line); }
+      .copy-button:hover { color: var(--a3); box-shadow: 0 0 0 1px var(--a3); }
+      .platform { display: inline-flex; padding: 4px 7px; border-radius: 5px; background: #edf2f3; color: #45565d; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+      .toggle { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 7px; background: white; color: transparent; }
+      .toggle::after { content: "✓"; font-weight: 900; }
+      .toggle.on[data-key="a2"] { color: white; border-color: var(--a2); background: var(--a2); }
+      .toggle.on[data-key="a3"] { color: white; border-color: var(--a3); background: var(--a3); }
+      .toggle.on[data-key="a5"] { color: white; border-color: var(--a5); background: var(--a5); }
+      .toggle.on[data-key="310p"] { color: white; border-color: var(--p310); background: var(--p310); }
+      .icon-button { width: 32px; height: 32px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 18px; }
+      .icon-button:hover { background: #f7e9ea; color: var(--danger); }
+
+      .empty { padding: 72px 20px; text-align: center; color: var(--muted); }
+      .empty strong { display: block; margin-bottom: 8px; color: var(--ink); font-size: 17px; }
+      .drop-active { outline: 3px dashed var(--a3); outline-offset: -10px; }
+      [hidden] { display: none !important; }
+
+      dialog { width: min(560px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 13px; box-shadow: 0 26px 90px rgba(10,27,34,.28); }
+      dialog::backdrop { background: rgba(14,28,34,.46); backdrop-filter: blur(3px); }
+      .dialog-head { padding: 22px 24px 16px; border-bottom: 1px solid var(--line); }
+      .dialog-head h2 { margin: 0; font-size: 20px; }
+      .dialog-head p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+      .form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 22px 24px; }
+      .field { display: grid; gap: 7px; }
+      .field.full { grid-column: 1 / -1; }
+      .field label { font-size: 12px; font-weight: 750; }
+      .field input, .field select { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; }
+      .checks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .check { display: flex; align-items: center; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 14px 24px 20px; }
+      .toast { position: fixed; right: 24px; bottom: 24px; max-width: min(390px, calc(100vw - 48px)); padding: 13px 16px; border-radius: 9px; background: var(--ink); color: white; font-size: 13px; box-shadow: var(--shadow); opacity: 0; transform: translateY(12px); pointer-events: none; transition: .18s ease; }
+      .toast.show { opacity: 1; transform: translateY(0); }
+
+      @media (max-width: 760px) {
+        .shell { padding: 22px 14px 40px; }
+        .topbar { flex-direction: column; }
+        .actions { justify-content: flex-start; }
+        .hardware { padding: 14px 10px; }
+        .hardware span { margin-left: 0; }
+        .hardware-rail::before, .node { display: none; }
+        .toolbar { grid-template-columns: 1fr 1fr; }
+        .toolbar .search { grid-column: 1 / -1; }
+        .form { grid-template-columns: 1fr; }
+        .field.full { grid-column: auto; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">vLLM Omni / model registry</p>
+          <h1>硬件模型矩阵</h1>
+          <p class="lede">在一个视图中维护 A2、A3、A5 和 310P 的模型与数据集清单。文件只在浏览器本地处理；保存时顶层 models 和 datasets 会自动更新为四组资源的并集。</p>
+        </div>
+        <div class="actions">
+          <button class="button" id="openButton">打开 JSON</button>
+          <button class="button" id="downloadButton" disabled>下载副本</button>
+          <button class="button primary" id="saveButton" disabled>保存更改</button>
+          <input id="fileInput" type="file" accept="application/json,.json" hidden />
+        </div>
+      </header>
+
+      <section class="hardware-rail" aria-label="按硬件筛选">
+        <label class="hardware" data-key="a2"><div class="hardware-head"><i class="node"></i><strong>A2</strong><input class="hardware-filter" type="checkbox" value="a2" checked aria-label="筛选 A2" /></div><span id="count-a2">0 models</span></label>
+        <label class="hardware" data-key="a3"><div class="hardware-head"><i class="node"></i><strong>A3</strong><input class="hardware-filter" type="checkbox" value="a3" checked aria-label="筛选 A3" /></div><span id="count-a3">0 models</span></label>
+        <label class="hardware" data-key="a5"><div class="hardware-head"><i class="node"></i><strong>A5</strong><input class="hardware-filter" type="checkbox" value="a5" checked aria-label="筛选 A5" /></div><span id="count-a5">0 models</span></label>
+        <label class="hardware" data-key="310p"><div class="hardware-head"><i class="node"></i><strong>310P</strong><input class="hardware-filter" type="checkbox" value="310p" checked aria-label="筛选 310P" /></div><span id="count-310p">0 models</span></label>
+      </section>
+
+      <section class="workspace" id="workspace">
+        <div class="toolbar">
+          <input class="search" id="searchInput" type="search" placeholder="搜索 Hugging Face ID…" disabled />
+        </div>
+        <div class="summary" id="summary"><span>尚未打开配置文件</span></div>
+        <section class="resource-section" aria-labelledby="modelsHeading">
+          <div class="section-heading"><h2 id="modelsHeading">模型 <span id="modelsCount">0</span></h2><button class="button" id="addModelButton" disabled>添加模型</button></div>
+          <div class="table-wrap"><table id="modelsTable" aria-label="模型硬件分配"><thead><tr><th>Hugging Face ID</th><th>下载命令</th><th class="hw" data-hw-column="a2">A2</th><th class="hw" data-hw-column="a3">A3</th><th class="hw" data-hw-column="a5">A5</th><th class="hw" data-hw-column="310p">310P</th><th class="action"></th></tr></thead><tbody id="modelRows"></tbody></table><div class="empty" id="modelsEmpty"><strong>打开配置开始管理</strong>选择 vllm-omni-only.json，或将文件拖到这里。</div></div>
+        </section>
+        <section class="resource-section" aria-labelledby="datasetsHeading">
+          <div class="section-heading"><h2 id="datasetsHeading">数据集 <span id="datasetsCount">0</span></h2><button class="button" id="addDatasetButton" disabled>添加数据集</button></div>
+          <div class="table-wrap"><table id="datasetsTable" aria-label="数据集硬件分配"><thead><tr><th>Hugging Face ID</th><th>下载命令</th><th class="hw" data-hw-column="a2">A2</th><th class="hw" data-hw-column="a3">A3</th><th class="hw" data-hw-column="a5">A5</th><th class="hw" data-hw-column="310p">310P</th><th class="action"></th></tr></thead><tbody id="datasetRows"></tbody></table><div class="empty" id="datasetsEmpty"><strong>打开配置开始管理</strong>选择 vllm-omni-only.json，或将文件拖到这里。</div></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="modelDialog">
+      <form id="modelForm">
+        <div class="dialog-head"><h2 id="dialogTitle">添加模型</h2><p id="dialogHelp">资源身份由平台、组织和名称共同确定。</p></div>
+        <div class="form">
+          <div class="field"><label for="platform">平台</label><select id="platform" required><option value="huggingface">huggingface</option><option value="modelscope">modelscope</option></select></div>
+          <div class="field"><label for="organization">组织</label><input id="organization" required placeholder="Qwen" /></div>
+          <div class="field full"><label for="modelName" id="nameLabel">模型名称</label><input id="modelName" required placeholder="Qwen3-TTS-12Hz-1.7B-Base" /></div>
+          <div class="field full"><label for="localDir">本地目录（可选）</label><input id="localDir" placeholder="/root/.cache/custom-path" /></div>
+          <div class="field full" id="hardwareField"><label>同步到</label><div class="checks" id="hardwareChecks"></div></div>
+        </div>
+        <div class="dialog-actions"><button class="button" value="cancel" formmethod="dialog" type="button" id="cancelDialog">取消</button><button class="button primary" id="submitResource" type="submit">保存模型</button></div>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const HARDWARE = ["a2", "a3", "a5", "310p"];
+      const state = { config: null, handle: null, fileName: "vllm-omni-only.json", dirty: false, editingKey: null, resourceType: "model" };
+      const $ = (id) => document.getElementById(id);
+      const modelKey = (m) => [m.platform, m.organization, m.model_name].join("\u0000");
+      const datasetKey = (d) => [d.platform, d.organization, d.dataset_name].join("\u0000");
+      const repoId = (item, type) => `${item.organization}/${type === "model" ? item.model_name : item.dataset_name}`;
+      const labels = { a2: "A2", a3: "A3", a5: "A5", "310p": "310P" };
+
+      function normalizeConfig(raw) {
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("JSON 顶层必须是对象");
+        if (!Array.isArray(raw.models)) raw.models = [];
+        if (!Array.isArray(raw.datasets)) raw.datasets = [];
+        for (const hw of HARDWARE) {
+          if (!raw[hw] || typeof raw[hw] !== "object" || Array.isArray(raw[hw])) raw[hw] = { models: [] };
+          if (!Array.isArray(raw[hw].models)) raw[hw].models = [];
+          if (!Array.isArray(raw[hw].datasets)) raw[hw].datasets = raw.datasets.map((dataset) => ({ ...dataset }));
+        }
+        return raw;
+      }
+
+      function catalog() {
+        const map = new Map();
+        for (const model of state.config.models) map.set(modelKey(model), { ...model });
+        for (const hw of HARDWARE) for (const model of state.config[hw].models) map.set(modelKey(model), { ...model });
+        return [...map.values()].sort((a, b) => `${a.organization}/${a.model_name}`.localeCompare(`${b.organization}/${b.model_name}`));
+      }
+
+      function datasetCatalog() {
+        const map = new Map();
+        for (const dataset of state.config.datasets) map.set(datasetKey(dataset), { ...dataset });
+        for (const hw of HARDWARE) for (const dataset of state.config[hw].datasets) map.set(datasetKey(dataset), { ...dataset });
+        return [...map.values()].sort((a, b) => repoId(a, "dataset").localeCompare(repoId(b, "dataset")));
+      }
+
+      function hasModel(hw, key) { return state.config[hw].models.some((m) => modelKey(m) === key); }
+      function hasDataset(hw, key) { return state.config[hw].datasets.some((d) => datasetKey(d) === key); }
+      function syncTopLevel() {
+        const models = new Map();
+        const datasets = new Map();
+        for (const hw of HARDWARE) {
+          for (const model of state.config[hw].models) models.set(modelKey(model), { ...model });
+          for (const dataset of state.config[hw].datasets) datasets.set(datasetKey(dataset), { ...dataset });
+        }
+        state.config.models = [...models.values()];
+        state.config.datasets = [...datasets.values()];
+      }
+
+      function setDirty(value = true) {
+        state.dirty = value;
+        $("saveButton").textContent = value ? "保存更改 ·" : "已保存";
+        document.title = `${value ? "• " : ""}Omni 模型矩阵`;
+      }
+
+      function selectedHardware() {
+        return [...document.querySelectorAll(".hardware-filter:checked")].map((input) => input.value);
+      }
+
+      function render() {
+        const loaded = Boolean(state.config);
+        for (const id of ["downloadButton", "saveButton", "searchInput", "addModelButton", "addDatasetButton"]) $(id).disabled = !loaded;
+        if (!loaded) return;
+        const models = catalog();
+        const datasets = datasetCatalog();
+        const q = $("searchInput").value.trim().toLowerCase();
+        const selected = selectedHardware();
+        const filterActive = selected.length > 0 && selected.length < HARDWARE.length;
+        const visibleModels = models.filter((m) => {
+          const key = modelKey(m);
+          const textMatch = `${m.platform} ${repoId(m, "model")}`.toLowerCase().includes(q);
+          const hardwareMatch = !filterActive || selected.some((hw) => hasModel(hw, key));
+          return textMatch && hardwareMatch;
+        });
+        const visibleDatasets = datasets.filter((d) => {
+          const key = datasetKey(d);
+          const textMatch = `${d.platform} ${repoId(d, "dataset")}`.toLowerCase().includes(q);
+          const hardwareMatch = !filterActive || selected.some((hw) => hasDataset(hw, key));
+          return textMatch && hardwareMatch;
+        });
+        $("modelRows").replaceChildren(...visibleModels.map(modelRow));
+        $("datasetRows").replaceChildren(...visibleDatasets.map(datasetRow));
+        for (const hw of HARDWARE) {
+          const muted = !selected.includes(hw) && selected.length > 0;
+          document.querySelectorAll(`[data-hw-column="${hw}"]`).forEach((cell) => cell.classList.toggle("hw-muted", muted));
+        }
+        $("modelsEmpty").hidden = visibleModels.length > 0;
+        $("datasetsEmpty").hidden = visibleDatasets.length > 0;
+        if (!visibleModels.length) $("modelsEmpty").innerHTML = `<strong>没有匹配的模型</strong>调整搜索或硬件筛选条件。`;
+        if (!visibleDatasets.length) $("datasetsEmpty").innerHTML = `<strong>没有匹配的数据集</strong>调整搜索或硬件筛选条件。`;
+        for (const hw of HARDWARE) $("count-" + hw).textContent = `${state.config[hw].models.length} models · ${state.config[hw].datasets.length} datasets`;
+        $("modelsCount").textContent = models.length;
+        $("datasetsCount").textContent = datasets.length;
+        $("summary").innerHTML = `<span><b>${models.length}</b> 个模型</span><span><b>${datasets.length}</b> 个数据集</span><span>${escapeHtml(state.fileName)}</span>`;
+      }
+
+      function modelRow(model) {
+        const key = modelKey(model);
+        const id = repoId(model, "model");
+        const command = model.platform === "huggingface" ? `hf download ${id}` : "";
+        const row = document.createElement("tr");
+        row.innerHTML = `<td><div class="repo-id">${escapeHtml(id)}</div><div class="model-meta">${escapeHtml(model.platform)}</div></td><td class="command-cell"></td>${HARDWARE.map((hw) => `<td class="hw" data-hw-column="${hw}"><button class="toggle ${hasModel(hw, key) ? "on" : ""}" data-key="${hw}" title="切换 ${labels[hw]}" aria-label="${labels[hw]} ${hasModel(hw, key) ? "已启用" : "未启用"}"></button></td>`).join("")}<td class="action"><button class="icon-button" title="删除模型" aria-label="删除模型">×</button></td>`;
+        row.querySelector(".command-cell").append(commandNode(command, model.platform));
+        row.querySelectorAll(".toggle").forEach((button) => button.addEventListener("click", () => toggleHardware(button.dataset.key, model)));
+        row.querySelector(".repo-id").addEventListener("click", () => openResourceDialog(model, "model"));
+        row.querySelector(".repo-id").style.cursor = "pointer";
+        row.querySelector(".icon-button").addEventListener("click", () => removeModel(model));
+        return row;
+      }
+
+      function datasetRow(dataset) {
+        const id = repoId(dataset, "dataset");
+        const key = datasetKey(dataset);
+        const command = dataset.platform === "huggingface" ? `hf download --repo-type dataset ${id}` : "";
+        const row = document.createElement("tr");
+        row.innerHTML = `<td><div class="repo-id">${escapeHtml(id)}</div><div class="model-meta">${escapeHtml(dataset.platform)}</div></td><td class="command-cell"></td>${HARDWARE.map((hw) => `<td class="hw" data-hw-column="${hw}"><button class="toggle ${hasDataset(hw, key) ? "on" : ""}" data-key="${hw}" title="切换 ${labels[hw]}" aria-label="${labels[hw]} ${hasDataset(hw, key) ? "已启用" : "未启用"}"></button></td>`).join("")}<td class="action"><button class="icon-button" title="删除数据集" aria-label="删除数据集">×</button></td>`;
+        row.querySelector(".command-cell").append(commandNode(command, dataset.platform));
+        row.querySelectorAll(".toggle").forEach((button) => button.addEventListener("click", () => toggleDatasetHardware(button.dataset.key, dataset)));
+        row.querySelector(".repo-id").addEventListener("click", () => openResourceDialog(dataset, "dataset"));
+        row.querySelector(".repo-id").style.cursor = "pointer";
+        row.querySelector(".icon-button").addEventListener("click", () => removeDataset(dataset));
+        return row;
+      }
+
+      function commandNode(command, platform) {
+        if (!command) { const badge = document.createElement("span"); badge.className = "platform"; badge.textContent = `${platform} 暂无 HF 命令`; return badge; }
+        const wrapper = document.createElement("div"); wrapper.className = "command";
+        const code = document.createElement("code"); code.textContent = command;
+        const button = document.createElement("button"); button.className = "copy-button"; button.type = "button"; button.textContent = "复制";
+        button.addEventListener("click", () => copyText(command)); wrapper.append(code, button); return wrapper;
+      }
+
+      function toggleHardware(hw, model) {
+        const key = modelKey(model);
+        const index = state.config[hw].models.findIndex((m) => modelKey(m) === key);
+        if (index >= 0) state.config[hw].models.splice(index, 1); else state.config[hw].models.push({ ...model });
+        syncTopLevel(); setDirty(); render();
+      }
+
+      function toggleDatasetHardware(hw, dataset) {
+        const key = datasetKey(dataset);
+        const index = state.config[hw].datasets.findIndex((d) => datasetKey(d) === key);
+        if (index >= 0) state.config[hw].datasets.splice(index, 1); else state.config[hw].datasets.push({ ...dataset });
+        syncTopLevel(); setDirty(); render();
+      }
+
+      function removeModel(model) {
+        const key = modelKey(model);
+        if (!confirm(`从所有硬件中删除 ${model.organization}/${model.model_name}？`)) return;
+        for (const hw of HARDWARE) state.config[hw].models = state.config[hw].models.filter((m) => modelKey(m) !== key);
+        syncTopLevel(); setDirty(); render(); showToast("模型已从所有硬件移除");
+      }
+
+      function removeDataset(dataset) {
+        if (!confirm(`从所有硬件中删除数据集 ${repoId(dataset, "dataset")}？`)) return;
+        const key = datasetKey(dataset);
+        for (const hw of HARDWARE) state.config[hw].datasets = state.config[hw].datasets.filter((d) => datasetKey(d) !== key);
+        syncTopLevel(); setDirty(); render(); showToast("数据集已从所有硬件移除");
+      }
+
+      function openResourceDialog(resource = null, type = "model") {
+        state.resourceType = type;
+        state.editingKey = resource ? (type === "model" ? modelKey(resource) : datasetKey(resource)) : null;
+        const noun = type === "model" ? "模型" : "数据集";
+        $("dialogTitle").textContent = resource ? `编辑${noun}` : `添加${noun}`;
+        $("nameLabel").textContent = `${noun}名称`;
+        $("modelName").placeholder = type === "model" ? "Qwen3-TTS-12Hz-1.7B-Base" : "seed-tts-eval";
+        $("submitResource").textContent = `保存${noun}`;
+        $("hardwareField").hidden = false;
+        $("platform").value = resource?.platform || "huggingface";
+        $("organization").value = resource?.organization || "";
+        $("modelName").value = type === "model" ? resource?.model_name || "" : resource?.dataset_name || "";
+        $("localDir").value = resource?.local_dir || "";
+        $("hardwareChecks").replaceChildren(...HARDWARE.map((hw) => {
+          const label = document.createElement("label"); label.className = "check";
+          const checked = resource
+            ? (type === "model" ? hasModel(hw, modelKey(resource)) : hasDataset(hw, datasetKey(resource)))
+            : true;
+          label.innerHTML = `<input type="checkbox" value="${hw}" ${checked ? "checked" : ""}> ${labels[hw]}`;
+          return label;
+        }));
+        $("modelDialog").showModal();
+      }
+
+      function submitResource(event) {
+        event.preventDefault();
+        const isModel = state.resourceType === "model";
+        const resource = { platform: $("platform").value, organization: $("organization").value.trim() };
+        resource[isModel ? "model_name" : "dataset_name"] = $("modelName").value.trim();
+        const localDir = $("localDir").value.trim(); if (localDir) resource.local_dir = localDir;
+        const nextKey = isModel ? modelKey(resource) : datasetKey(resource);
+        const duplicate = isModel
+          ? catalog().some((m) => modelKey(m) === nextKey && modelKey(m) !== state.editingKey)
+          : datasetCatalog().some((d) => datasetKey(d) === nextKey && datasetKey(d) !== state.editingKey);
+        if (duplicate) { showToast(`这个${isModel ? "模型" : "数据集"}已经存在`); return; }
+        const selected = new Set([...$("hardwareChecks").querySelectorAll("input:checked")].map((input) => input.value));
+        if (!isModel) {
+          for (const hw of HARDWARE) {
+            state.config[hw].datasets = state.config[hw].datasets.filter((d) => datasetKey(d) !== state.editingKey && datasetKey(d) !== nextKey);
+            if (selected.has(hw)) state.config[hw].datasets.push({ ...resource });
+          }
+          syncTopLevel(); setDirty(); $("modelDialog").close(); render(); showToast(state.editingKey ? "数据集已更新" : "数据集已添加"); return;
+        }
+        for (const hw of HARDWARE) {
+          state.config[hw].models = state.config[hw].models.filter((m) => modelKey(m) !== state.editingKey && modelKey(m) !== nextKey);
+          if (selected.has(hw)) state.config[hw].models.push({ ...resource });
+        }
+        syncTopLevel(); setDirty(); $("modelDialog").close(); render(); showToast(state.editingKey ? "模型已更新" : "模型已添加");
+      }
+
+      async function readFile(file, handle = null) {
+        try {
+          const parsed = JSON.parse(await file.text());
+          state.config = normalizeConfig(parsed); state.handle = handle; state.fileName = file.name; setDirty(false); render(); showToast(`已打开 ${file.name}`);
+        } catch (error) { showToast(`无法打开：${error.message}`); }
+      }
+
+      async function loadDefaultConfig() {
+        if (location.protocol === "file:") {
+          showToast("本地打开时请选择或拖入 JSON；Pages 会自动加载默认配置");
+          return;
+        }
+        try {
+          const response = await fetch("./vllm-omni-only.json", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          state.config = normalizeConfig(await response.json());
+          state.handle = null; state.fileName = "vllm-omni-only.json"; setDirty(false); render(); showToast("已加载默认配置");
+        } catch (error) { showToast(`默认配置加载失败：${error.message}`); }
+      }
+
+      async function openFile() {
+        if (window.showOpenFilePicker) {
+          try {
+            const [handle] = await showOpenFilePicker({ types: [{ description: "JSON 配置", accept: { "application/json": [".json"] } }], multiple: false });
+            await readFile(await handle.getFile(), handle); return;
+          } catch (error) { if (error.name === "AbortError") return; }
+        }
+        $("fileInput").click();
+      }
+
+      function serialized() { syncTopLevel(); return JSON.stringify(state.config, null, 2) + "\n"; }
+      async function saveFile() {
+        if (!state.config) return;
+        if (state.handle) {
+          try { const writable = await state.handle.createWritable(); await writable.write(serialized()); await writable.close(); setDirty(false); render(); showToast("更改已保存到原文件"); return; }
+          catch (error) { showToast(`原文件保存失败：${error.message}`); }
+        }
+        downloadFile();
+      }
+      function downloadFile() {
+        const blob = new Blob([serialized()], { type: "application/json" });
+        const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = state.fileName; link.click(); URL.revokeObjectURL(url); showToast("配置副本已下载");
+      }
+      async function copyText(value) {
+        try {
+          if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(value);
+          else {
+            const input = document.createElement("textarea"); input.value = value; input.style.position = "fixed"; input.style.opacity = "0";
+            document.body.append(input); input.select(); document.execCommand("copy"); input.remove();
+          }
+          showToast("下载命令已复制");
+        } catch { showToast("复制失败，请手动选择命令"); }
+      }
+      function escapeHtml(value = "") { const div = document.createElement("div"); div.textContent = String(value); return div.innerHTML; }
+      let toastTimer; function showToast(message) { clearTimeout(toastTimer); $("toast").textContent = message; $("toast").classList.add("show"); toastTimer = setTimeout(() => $("toast").classList.remove("show"), 2600); }
+
+      $("openButton").addEventListener("click", openFile);
+      $("fileInput").addEventListener("change", (e) => e.target.files[0] && readFile(e.target.files[0]));
+      $("saveButton").addEventListener("click", saveFile);
+      $("downloadButton").addEventListener("click", downloadFile);
+      $("addModelButton").addEventListener("click", () => openResourceDialog(null, "model"));
+      $("addDatasetButton").addEventListener("click", () => openResourceDialog(null, "dataset"));
+      $("searchInput").addEventListener("input", render);
+      document.querySelectorAll(".hardware-filter").forEach((input) => input.addEventListener("change", render));
+      $("modelForm").addEventListener("submit", submitResource);
+      $("cancelDialog").addEventListener("click", () => $("modelDialog").close());
+      $("workspace").addEventListener("dragover", (e) => { e.preventDefault(); $("workspace").classList.add("drop-active"); });
+      $("workspace").addEventListener("dragleave", () => $("workspace").classList.remove("drop-active"));
+      $("workspace").addEventListener("drop", (e) => { e.preventDefault(); $("workspace").classList.remove("drop-active"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+      window.addEventListener("beforeunload", (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
+      loadDefaultConfig();
+    </script>
+  </body>
+</html>

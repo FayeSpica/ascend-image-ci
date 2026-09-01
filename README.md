@@ -1,5 +1,11 @@
 # ascend-image-ci
 
+## Model matrix
+
+The repository publishes the Omni hardware model matrix with GitHub Pages. After
+the Pages deployment workflow has run, open
+`https://fayespica.github.io/ascend-image-ci/`.
+
 Orchestration repo for building Ascend/NPU container images on demand. It holds
 only CI definitions — the Dockerfiles and source live in their upstream repos
 and are checked out at build time.
