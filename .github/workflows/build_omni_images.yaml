@@ -41,12 +41,16 @@ jobs:
         variant:
           - key: omni-a2
             suffix: ''
+            patch_310p_triton_residue: '0'
           - key: omni-a3
             suffix: '-a3'
+            patch_310p_triton_residue: '0'
           - key: omni-a5
             suffix: '-a5'
+            patch_310p_triton_residue: '0'
           - key: omni-310p
             suffix: '-310p'
+            patch_310p_triton_residue: '1'
     uses: ./.github/workflows/_build_push_image.yaml
     with:
       source_repo: ${{ github.repository }}
@@ -59,4 +63,5 @@ jobs:
         VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image }}
         VLLM_ASCEND_TAG=${{ inputs.vllm_ascend_base_tag }}${{ matrix.variant.suffix }}
         VLLM_OMNI_REF=${{ inputs.omni_ref }}
+        PATCH_310P_TRITON_RESIDUE=${{ matrix.variant.patch_310p_triton_residue }}
     secrets: inherit

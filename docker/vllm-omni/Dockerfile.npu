@@ -8,6 +8,15 @@ ARG APP_DIR=/vllm-workspace/vllm-omni
 # Source of the vllm-omni repo to clone into the image (instead of COPY .).
 ARG VLLM_OMNI_REPO=https://github.com/vllm-project/vllm-omni.git
 ARG VLLM_OMNI_REF=main
+# Temporary workaround for the empty Triton namespace directories left in the
+# vllm-ascend 310P amd64 image after uninstalling triton and triton-ascend.
+ARG PATCH_310P_TRITON_RESIDUE=0
+
+RUN if [[ "${PATCH_310P_TRITON_RESIDUE}" == "1" ]]; then \
+        python3 -c 'import shutil, site; from pathlib import Path; [shutil.rmtree(Path(root) / "triton", ignore_errors=True) for root in site.getsitepackages()]' && \
+        python3 -c 'import importlib.util; assert importlib.util.find_spec("triton") is None' && \
+        python3 -c 'import torch'; \
+    fi
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
