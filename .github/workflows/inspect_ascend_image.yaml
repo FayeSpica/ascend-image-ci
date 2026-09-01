@@ -94,8 +94,9 @@ jobs:
               for path in sorted(root.glob("*triton*")):
                   print(f"filesystem={path}")
                   if path.is_dir():
-                      for child in sorted(path.iterdir()):
-                          print(f"filesystem_child={child}")
+                      for child in sorted(path.rglob("*")):
+                          kind = "directory" if child.is_dir() else "file"
+                          print(f"filesystem_child={kind} {child}")
           PY
 
               echo "TORCH_AUTOLOAD"
@@ -105,7 +106,6 @@ jobs:
               print(f"torch_import=ok version={torch.__version__}")
           except Exception as exc:
               print(f"torch_import=error {type(exc).__name__}: {exc}")
-              raise
           PY
             '
 
