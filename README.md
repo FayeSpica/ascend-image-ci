@@ -16,20 +16,32 @@ multi-arch manifests to `quay.io/fayeomni/*`:
 | Image | Source repo | Dockerfiles | Tag scheme |
 |-------|-------------|-------------|------------|
 | `vllm-ascend` | [`vllm-project/vllm-ascend`](https://github.com/vllm-project/vllm-ascend) | `Dockerfile`, `Dockerfile.a3`, `Dockerfile.310p`, `Dockerfile.a5` | `<vllm_tag>-<ascend_ref>[-a3|-310p|-a5]` |
-| `vllm-omni` | [`vllm-project/vllm-omni`](https://github.com/vllm-project/vllm-omni) | `docker/Dockerfile.npu`, `docker/Dockerfile.npu.a3` | `<vllm_tag>-<ascend_ref>-omni-<omni_ref>[-a3]` |
+| `vllm-omni` | [`vllm-project/vllm-omni`](https://github.com/vllm-project/vllm-omni) | `docker/vllm-omni/Dockerfile.npu` | `<omni_tag>[-a3|-a5|-310p]` |
 
-### Temporary: omni 310p/A5 images
+### Publish an Omni release
 
-Upstream vllm-omni has no 310p/a5 NPU Dockerfiles yet, so temporary ones live
-in this repo (`docker/vllm-omni/Dockerfile.npu.ci.310p`,
-`docker/vllm-omni/Dockerfile.npu.ci.a5`) and clone vllm-omni at build time.
-The temporary **Build Omni 310p/A5 images (temporary)** workflow
-(`build_omni_310p_a5_images.yaml`) builds them FROM the matching vllm-ascend
-variant tags and publishes
-`<vllm_ascend_base_tag>-omni-<omni_ref>-310p` / `-a5`. Once upstream ships
-`docker/Dockerfile.npu.310p` / `.a5`, delete that workflow and those
-Dockerfiles and fold the variants into the omni matrix in
-`build_images.yaml`.
+Use **Build Omni images** to publish all supported variants from one vLLM-Omni
+ref. The workflow builds native `linux/amd64` and `linux/arm64` images for A2,
+A3, A5, and 310P, then publishes one multi-arch manifest per variant.
+
+```bash
+gh workflow run build_omni_images.yaml --repo FayeSpica/ascend-image-ci \
+  -f omni_ref=v0.28.0 \
+  -f vllm_ascend_image=quay.io/fayeomni/vllm-ascend \
+  -f vllm_ascend_base_tag=v0.28.0-pr14898-patch15321-mindiesd \
+  -f omni_image=quay.io/fayeomni/vllm-omni \
+  -f omni_tag=v0.28.0
+```
+
+This example publishes:
+
+- `quay.io/fayeomni/vllm-omni:v0.28.0`
+- `quay.io/fayeomni/vllm-omni:v0.28.0-a3`
+- `quay.io/fayeomni/vllm-omni:v0.28.0-a5`
+- `quay.io/fayeomni/vllm-omni:v0.28.0-310p`
+
+`vllm_ascend_base_tag` must omit the hardware suffix. The workflow appends
+no suffix for A2 and appends `-a3`, `-a5`, or `-310p` for the other variants.
 
 ## Dependency chain
 
@@ -93,4 +105,5 @@ private/fork sources).
 ## Files
 
 - `.github/workflows/build_images.yaml` — dispatcher / orchestrator
+- `.github/workflows/build_omni_images.yaml` — publish all Omni hardware variants
 - `.github/workflows/_build_push_image.yaml` — reusable per-image multi-arch build + manifest merge

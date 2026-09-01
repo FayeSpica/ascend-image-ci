@@ -60,6 +60,7 @@ RUN source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
       "onnx>=1.16.0" \
       "librosa>=0.10.0" \
       "datasets>=3.0.0" \
+      "mindiesd==3.1.0; platform_machine != 'x86_64'" \
       --default-timeout=60 && \
     python3 -m pip install -v -e /vllm-workspace/vllm-omni/ --no-build-isolation \
       --default-timeout=60 && \
