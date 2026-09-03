@@ -7,9 +7,8 @@
 # downloaded at image-build time (see patch/Dockerfile.mindie-sd). The patched
 # image differs from its source by a single pip-install layer.
 #
-# Both arches are built so the destination stays a multi-arch manifest matching
-# the source. An arch whose wheel URL is empty skips the install instead of
-# failing.
+# Both arches are built and MindIE-SD is installed on each, so the destination
+# stays a fully patched multi-arch manifest matching the source.
 #
 # Multi-arch is handled by reusing _build_push_image.yaml: it builds each arch on
 # its native runner, pushes per-arch tags, merges them into one manifest, and
@@ -35,14 +34,14 @@ on:
         default: 'quay.io/fayeomni/vllm-ascend:v0.23.0-main-mindiesd'
       wheel_url_aarch64:
         description: 'MindIE-SD wheel URL for arm64'
-        required: false
+        required: true
         type: string
         default: 'https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_aarch64.whl'
       wheel_url_x86_64:
-        description: 'MindIE-SD wheel URL for amd64; leave empty to skip the install there'
-        required: false
+        description: 'MindIE-SD wheel URL for amd64'
+        required: true
         type: string
-        default: ''
+        default: 'https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_x86_64.whl'
 
 permissions:
   contents: read

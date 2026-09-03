@@ -3,7 +3,7 @@
 #
 #   BASE_IMAGE                    - the source image to patch (declared before FROM)
 #   MINDIE_SD_WHEEL_URL_AARCH64   - wheel to install on arm64
-#   MINDIE_SD_WHEEL_URL_X86_64    - wheel to install on amd64; empty = skip
+#   MINDIE_SD_WHEEL_URL_X86_64    - wheel to install on amd64
 #
 # mindiesd is on PyPI, but ships exactly one file there
 # (mindiesd-3.0.0-cp311-cp311-manylinux_2_34_aarch64.whl): wrong ABI for our
@@ -15,9 +15,7 @@
 #
 # One wheel per arch covers both A2 and A3 -- upstream compiles every compute
 # unit into it in one pass -- so the only selection here is by `uname -m`,
-# matching the platform tag in the wheel's filename. An empty URL for an arch
-# skips the install there rather than failing, so both arches still build and
-# the multi-arch manifest stays intact.
+# matching the platform tag in the wheel's filename.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
@@ -34,12 +32,9 @@ RUN set -eu; \
     case "$arch" in \
         aarch64) url="${MINDIE_SD_WHEEL_URL_AARCH64}" ;; \
         x86_64)  url="${MINDIE_SD_WHEEL_URL_X86_64}" ;; \
-        *)       url="" ;; \
+        *)       echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
     esac; \
-    if [ -z "$url" ]; then \
-        echo "no MindIE-SD wheel URL for ${arch}; skipping install"; \
-        exit 0; \
-    fi; \
+    : "${url:?MindIE-SD wheel URL is required for ${arch}}"; \
     fname="${url##*/}"; \
     echo "downloading ${url}"; \
     if command -v curl >/dev/null 2>&1; then \
