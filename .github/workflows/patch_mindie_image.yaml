@@ -32,16 +32,6 @@ on:
         required: true
         type: string
         default: 'quay.io/fayeomni/vllm-ascend:v0.23.0-main-mindiesd'
-      wheel_url_aarch64:
-        description: 'MindIE-SD wheel URL for arm64'
-        required: true
-        type: string
-        default: 'https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_aarch64.whl'
-      wheel_url_x86_64:
-        description: 'MindIE-SD wheel URL for amd64'
-        required: true
-        type: string
-        default: 'https://github.com/FayeSpica/ascend-image-ci/releases/download/mindiesd-3.0.0/mindiesd-3.0.0-cp312-cp312-linux_x86_64.whl'
 
 permissions:
   contents: read
@@ -86,6 +76,4 @@ jobs:
       artifact_key: patch-mindie-sd
       build_args: |
         BASE_IMAGE=${{ inputs.source_image }}
-        MINDIE_SD_WHEEL_URL_AARCH64=${{ inputs.wheel_url_aarch64 }}
-        MINDIE_SD_WHEEL_URL_X86_64=${{ inputs.wheel_url_x86_64 }}
     secrets: inherit
