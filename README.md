@@ -1,96 +1,158 @@
 # ascend-image-ci
 
-## Model matrix
+CI workflows for building and publishing multi-architecture Ascend/NPU container
+images (`linux/amd64` and `linux/arm64`). Ascend builds use Dockerfiles from
+[vllm-project/vllm-ascend](https://github.com/vllm-project/vllm-ascend);
+the standard Omni build uses this repository's
+[`docker/vllm-omni/Dockerfile.npu`](docker/vllm-omni/Dockerfile.npu) and clones
+[vllm-project/vllm-omni](https://github.com/vllm-project/vllm-omni) at build time.
 
-The repository publishes the Omni hardware model matrix with GitHub Pages. After
-the Pages deployment workflow has run, open
-`https://fayespica.github.io/ascend-image-ci/`.
+## Standard release process
 
-Orchestration repo for building Ascend/NPU container images on demand. It holds
-only CI definitions — the Dockerfiles and source live in their upstream repos
-and are checked out at build time.
+```mermaid
+flowchart TD
+    A["1. Build Ascend images<br/>quay.io/fayeomni/vllm-ascend"]
+    B["2. Build Omni images<br/>quay.io/fayeomni/vllm-omni"]
+    C{"Ascend validation passes?"}
+    D["3. Publish Ascend images<br/>quay.io/atlas-ci/vllm-ascend"]
+    E{"Omni validation passes?"}
+    F["4. Publish Omni images<br/>quay.io/ascend/vllm-omni"]
+    G["Fix Ascend and rebuild candidates"]
+    H["Fix Omni and rebuild candidate"]
 
-Builds two images, multi-arch (`linux/amd64` + `linux/arm64`), and pushes
-multi-arch manifests to `quay.io/fayeomni/*`:
-
-| Image | Source repo | Dockerfiles | Tag scheme |
-|-------|-------------|-------------|------------|
-| `vllm-ascend` | [`vllm-project/vllm-ascend`](https://github.com/vllm-project/vllm-ascend) | `Dockerfile`, `Dockerfile.a3`, `Dockerfile.310p`, `Dockerfile.a5` | `<vllm_tag>-<ascend_ref>[-a3|-310p|-a5]` |
-| `vllm-omni` | [`vllm-project/vllm-omni`](https://github.com/vllm-project/vllm-omni) | `docker/Dockerfile.npu`, `docker/Dockerfile.npu.a3` | `<vllm_tag>-<ascend_ref>-omni-<omni_ref>[-a3]` |
-
-### Temporary: omni 310p/A5 images
-
-Upstream vllm-omni has no 310p/a5 NPU Dockerfiles yet, so temporary ones live
-in this repo (`docker/vllm-omni/Dockerfile.npu.ci.310p`,
-`docker/vllm-omni/Dockerfile.npu.ci.a5`) and clone vllm-omni at build time.
-The temporary **Build Omni 310p/A5 images (temporary)** workflow
-(`build_omni_310p_a5_images.yaml`) builds them FROM the matching vllm-ascend
-variant tags and publishes
-`<vllm_ascend_base_tag>-omni-<omni_ref>-310p` / `-a5`. Once upstream ships
-`docker/Dockerfile.npu.310p` / `.a5`, delete that workflow and those
-Dockerfiles and fold the variants into the omni matrix in
-`build_images.yaml`.
-
-## Dependency chain
-
-`vllm-omni`'s NPU image is built `FROM` the `vllm-ascend` image
-(`FROM ${VLLM_ASCEND_IMAGE}:${VLLM_ASCEND_TAG}`). When both are selected the
-omni build runs after the ascend build and uses the freshly built tag as its
-base. To build omni alone against an existing ascend image, select `omni` only
-and set `vllm_ascend_base_tag`.
-
-## Usage
-
-Trigger **Build Ascend/Omni images** (manual / `workflow_dispatch`):
-
-```bash
-# build both (omni FROM the just-built ascend image)
-gh workflow run build_images.yaml \
-  -f targets=ascend+omni \
-  -f vllm_tag=v0.23.0 \
-  -f ascend_ref=main \
-  -f omni_ref=main
-
-# build only ascend
-gh workflow run build_images.yaml -f targets=ascend -f vllm_tag=v0.23.0 -f ascend_ref=main
-
-# build only omni against an existing ascend tag
-gh workflow run build_images.yaml \
-  -f targets=omni -f omni_ref=main \
-  -f vllm_ascend_base_tag=v0.23.0-main
+    A -->|Use Ascend candidate as base| B
+    B --> C
+    C -->|Yes| D
+    C -->|No| G
+    G --> A
+    D --> E
+    E -->|Yes| F
+    E -->|No| H
+    H --> B
 ```
 
-### Temporary patch
+1. Build Ascend candidate images in `quay.io/fayeomni/vllm-ascend`.
+2. Build Omni candidate images in `quay.io/fayeomni/vllm-omni`, using those Ascend images as the base.
+3. After Ascend validation passes, publish the validated Ascend images to `quay.io/atlas-ci/vllm-ascend`.
+4. After Omni validation passes, publish the validated Omni images to `quay.io/ascend/vllm-omni`.
 
-Optionally apply one or more vllm-ascend PRs to the checked-out source before
-building. Pass comma-separated PR numbers; each is fetched from
-`https://github.com/vllm-project/vllm-ascend/pull/<n>.diff` and applied with
-`git apply`. The build fails loudly if a patch does not apply cleanly.
-Patched builds publish under a `-patch<N>` tag fragment so they don't
-clobber the pristine `<vllm_tag>-<ascend_ref>` image.
+Build success alone does not satisfy either validation gate. Publishing copies
+the validated images, including all architectures, without rebuilding them.
+The workflows below are dispatched manually; they do not automatically enforce
+the hardware validation gates.
+
+### Prerequisites
+
+Configure these Actions variables and secrets in `FayeSpica/ascend-image-ci`.
+Use Quay accounts with write access to the corresponding destination repositories:
+
+- `QUAY_USERNAME` / `QUAY_PASSWORD`: variable / secret for `quay.io/fayeomni/vllm-ascend` and `quay.io/fayeomni/vllm-omni`.
+- `ATLAS_CI_QUAY_USERNAME` / `ATLAS_CI_QUAY_PASSWORD`: variable / secret for `quay.io/atlas-ci/vllm-ascend`.
+- `ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD`: variable / secret for `quay.io/ascend/vllm-omni`.
+
+### 1. Build Ascend images
+
+The following commands use v0.28.0 and Ascend PR #14898 with patch #15321 as
+an example. Select the refs and release tags for your release before running them.
 
 ```bash
-# build vllm-ascend at a PR ref with an extra temporary patch (PR 15321)
-gh workflow run build_images.yaml \
+gh workflow run build_images.yaml --repo FayeSpica/ascend-image-ci \
   -f targets=ascend \
   -f vllm_tag=v0.28.0 \
   -f ascend_ref=refs/pull/14898/head \
   -f patch_refs=15321
 ```
 
-## Required configuration
+This builds `quay.io/fayeomni/vllm-ascend:v0.28.0-pr14898-patch15321`
+for A2, plus tags ending in `-a3`, `-a5`, and `-310p`.
+Each hardware tag contains both CPU architectures.
 
-In repo `Settings → Secrets and variables → Actions`:
+- `ascend_ref` accepts a branch, tag, commit, or PR ref. PR refs become `pr<N>` in image tags; full commit SHAs become their first eight characters.
+- `vllm_commit` selects a specific vLLM commit and takes precedence over `vllm_tag`; its first eight characters become the vLLM tag fragment.
+- `patch_refs` is optional and accepts comma-separated Ascend PR numbers. Patches are applied with `git apply`; a failure stops the build. Omit it for an unpatched build and remove the corresponding `-patch<N>` fragment from subsequent commands.
 
-- **Variable** `QUAY_USERNAME` — Quay robot account, e.g. `fayeomni+ci`
-- **Secret** `QUAY_PASSWORD` — that robot account's token
+Wait for the build and manifest merge to complete before building Omni:
 
-The robot account must have **Write** access to `quay.io/fayeomni/vllm-ascend`
-and `quay.io/fayeomni/vllm-omni`. Source repos are public, so no checkout token
-is needed (add a PAT to the reusable workflow's checkout step if you switch to
-private/fork sources).
+```bash
+gh run list --repo FayeSpica/ascend-image-ci --workflow build_images.yaml --limit 5
+gh run watch <run-id> --repo FayeSpica/ascend-image-ci --exit-status
+```
+
+### 2. Build Omni images
+
+Use the Ascend candidate tag from step 1 as the base. Pass tags without hardware
+suffixes; `build_omni_images.yaml` appends them for A3, A5, and 310P automatically.
+
+```bash
+gh workflow run build_omni_images.yaml --repo FayeSpica/ascend-image-ci \
+  -f omni_ref=v0.28.0 \
+  -f vllm_ascend_image=quay.io/fayeomni/vllm-ascend \
+  -f vllm_ascend_base_tag=v0.28.0-pr14898-patch15321 \
+  -f omni_image=quay.io/fayeomni/vllm-omni \
+  -f omni_tag=v0.28.0
+```
+
+This builds `quay.io/fayeomni/vllm-omni:v0.28.0` for A2 and the corresponding
+`v0.28.0-a3`, `v0.28.0-a5`, and `v0.28.0-310p` tags. `omni_ref` must be a
+branch or tag because this Dockerfile uses `git clone --branch`.
+
+### 3. Validate Ascend and publish to atlas-ci
+
+Validate the exact Ascend candidate on the matching hardware before publishing.
+Record the source digest, hardware and dependency versions, test commands,
+results, and logs. Check NPU operations and the intended vLLM workloads; image
+build or import success alone is insufficient. Track untested hardware and CPU
+architectures explicitly, and publish only variants that meet the release's
+validation requirements.
+
+After validation passes, copy each approved hardware tag. For example, publish A2:
+
+```bash
+gh workflow run retag_image.yaml --repo FayeSpica/ascend-image-ci \
+  -f source_image=quay.io/fayeomni/vllm-ascend:v0.28.0-pr14898-patch15321 \
+  -f dest_image=quay.io/atlas-ci/vllm-ascend:v0.28.0
+```
+
+Repeat for each approved A3, A5, or 310P variant by appending `-a3`, `-a5`, or
+`-310p` to **both** source and destination tags. Each invocation copies one
+hardware variant and all its CPU architectures using `skopeo copy --all`.
+Use the recorded source digest (`image@sha256:...`) instead of a tag if the
+candidate tag may have changed since validation.
+
+### 4. Validate Omni and publish to ascend
+
+Validate the exact Omni candidate on the matching hardware with the intended
+model workloads. Retain test logs, check worker health, and inspect generated
+artifacts (for example, non-silent audio and valid image/video output). Record
+failures and untested coverage before deciding which variants are ready.
+
+After Omni validation passes, publish A2 with:
+
+```bash
+gh workflow run retag_image_to_ascend.yaml --repo FayeSpica/ascend-image-ci \
+  -f source_image=quay.io/fayeomni/vllm-omni:v0.28.0 \
+  -f dest_image=quay.io/ascend/vllm-omni:v0.28.0
+```
+
+Repeat for each approved variant, appending `-a3`, `-a5`, or `-310p` to both
+tags. As with Ascend, publish the validated source digest if its tag can change.
+
+For both publication steps, wait for the corresponding retag run to succeed
+and inspect its destination-manifest output for `linux/amd64` and `linux/arm64`.
+A successful workflow dispatch only queues the copy; it does not mean publication
+has completed.
+
+## Model matrix
+
+The repository publishes the
+[Omni hardware model matrix](https://fayespica.github.io/ascend-image-ci/)
+with GitHub Pages through `deploy-pages.yaml`.
 
 ## Files
 
-- `.github/workflows/build_images.yaml` — dispatcher / orchestrator
-- `.github/workflows/_build_push_image.yaml` — reusable per-image multi-arch build + manifest merge
+- `.github/workflows/build_images.yaml` — Ascend build and optional upstream A2/A3 Omni build.
+- `.github/workflows/build_omni_images.yaml` — four-variant Omni build using the local Dockerfile.
+- `.github/workflows/_build_push_image.yaml` — reusable multi-architecture build and manifest merge.
+- `.github/workflows/retag_image.yaml` — copy validated Ascend images to `atlas-ci`.
+- `.github/workflows/retag_image_to_ascend.yaml` — copy validated Omni images to `ascend`.
+- `docker/vllm-omni/Dockerfile.npu` — Omni image dependencies and source installation.
