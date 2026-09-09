@@ -33,51 +33,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN git clone --depth 1 --branch ${VLLM_OMNI_REF} ${VLLM_OMNI_REPO} ${APP_DIR}
-
-# Apply v0.21.0 NPU interface fixes at build time (reproducible; safe no-op
-# when the code is already aligned, e.g. v0.28.0)
-RUN python3 - <<'PYEOF'
-patches = [
-    ("/vllm-workspace/vllm-omni/vllm_omni/platforms/npu/worker/npu_ar_model_runner.py",
-     """                (
-                    logits_indices,
-                    spec_decode_metadata,
-                    total_num_scheduled_tokens,
-                ) = self._prepare_inputs(""",
-     """                (
-                    logits_indices,
-                    spec_decode_metadata,
-                    total_num_scheduled_tokens,
-                    _ascend_extra,
-                ) = self._prepare_inputs("""),
-    ("/vllm-workspace/vllm-omni/vllm_omni/platforms/npu/worker/npu_model_runner.py",
-     "    def _talker_mtp_forward(self, decode_req_ids: list[str], inputs_embeds: torch.Tensor) -> None:",
-     "    def _talker_mtp_forward(self, decode_req_ids: list[str], inputs_embeds: torch.Tensor, start_offsets: list[int] | None = None) -> None:"),
-    ("/vllm-workspace/vllm-omni/vllm_omni/platforms/npu/worker/npu_generation_model_runner.py",
-     """                (
-                    logits_indices,
-                    spec_decode_metadata,
-                    total_num_scheduled_tokens,
-                ) = self._prepare_inputs(""",
-     """                (
-                    logits_indices,
-                    spec_decode_metadata,
-                    total_num_scheduled_tokens,
-                    _ascend_extra,
-                ) = self._prepare_inputs("""),
-]
-for path, old, new in patches:
-    try:
-        s = open(path).read()
-        if old in s:
-            open(path, "w").write(s.replace(old, new, 1))
-            print("patched:", path)
-        else:
-            print("skip (already aligned):", path)
-    except FileNotFoundError:
-        print("skip (missing):", path)
-PYEOF
-
 WORKDIR ${APP_DIR}
 
 RUN source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
