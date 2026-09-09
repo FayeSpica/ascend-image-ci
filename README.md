@@ -157,14 +157,15 @@ The Dockerfile also accepts `VLLM_ASCEND_BASE` as a complete image reference
 and `VLLM_OMNI_COMMIT` as a full commit SHA; existing branch/tag builds retain
 their `VLLM_OMNI_REF` behavior when no commit is supplied.
 
-Images are first built in `quay.io/fayeomni/vllm-omni` with unique tags:
-`nightly-YYYYMMDD-<sha12>-<run_id>-<run_attempt>` and the hardware suffixes.
+Images are first built in `quay.io/fayeomni/vllm-omni` using rolling tags:
+`nightly`, `nightly-a3`, `nightly-a5`, and `nightly-310p`. Each run overwrites
+these tags; per-architecture staging tags also use fixed names.
 After **all eight builds and all four manifest checks succeed**, the workflow
 checks each architecture's Omni revision label, then copies the images by
 digest to `quay.io/ascend/vllm-omni` with `skopeo copy --all --preserve-digests`.
 Only `nightly`, `nightly-a3`, `nightly-a5`, and `nightly-310p` are published
-to ascend. Unique candidate tags remain exclusively in fayeomni. Each copied
-rolling tag is verified against its candidate digest.
+to ascend. Each copied rolling tag is verified against its candidate digest.
+Neither repository receives new date, commit, or run-specific nightly tags.
 
 Configure `QUAY_USERNAME` / `QUAY_PASSWORD` for candidate builds and
 `ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` for publication, as described
@@ -177,15 +178,16 @@ gh workflow run build_omni_nightly.yaml --repo FayeSpica/ascend-image-ci
 The workflow must be on the default branch for scheduled execution. Nightly
 runs share a concurrency group and do not cancel an in-progress run. Every
 night builds even when the upstream SHA is unchanged. When retrying a run,
-use **Re-run all jobs**, so prepare supplies a fresh attempt tag and all builds
-use the same resolved inputs; rerunning only failed jobs can reuse the original
-prepare outputs and candidate tags.
+use **Re-run all jobs**, so all builds use the same resolved inputs. Avoid
+rerunning only failed jobs against staging tags that a later run may overwrite.
 
 A failed build or candidate check prevents publication to ascend. Registry
 updates across four tags are not atomic: a copy or verification failure can
 leave a partially published run. Job summaries record source/base digests,
 copy starts, copy completions and verified destinations to identify that state.
-Candidate history is retained; there is no automatic history pruning.
+Historical nightly images are not retained by this workflow. Source revisions
+and digests remain in image metadata and job summaries. Previously published
+long tags require separate cleanup; this change does not delete them.
 
 Nightly publication is gated on builds and manifest/revision checks, **not real
 NPU model tests**. No hardware acceptance is claimed. The manual standard

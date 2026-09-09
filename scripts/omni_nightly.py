@@ -6,8 +6,6 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 SOURCE = 'quay.io/fayeomni/vllm-omni'
 DEST = 'quay.io/ascend/vllm-omni'
@@ -63,8 +61,7 @@ def prepare():
     if len(sha) != 2 or not re.fullmatch('[0-9a-f]{40}', sha[0]) or sha[1] != 'refs/heads/main':
         raise ValueError('Cannot resolve upstream main to one full commit SHA')
     sha = sha[0]
-    date = datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d')
-    tag = f"nightly-{date}-{sha[:12]}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+    tag = 'nightly'
     base_image = os.environ.get('BASE_IMAGE') or 'quay.io/atlas-ci/vllm-ascend'
     base_tag = os.environ.get('BASE_TAG') or 'v0.28.0'
     # These values enter a newline-separated Docker build-args input.
@@ -97,7 +94,7 @@ def publish():
         records.append((key, suffix, digest))
         summary(f'Candidate {key}: `{ref}` → `{digest}`')
 
-    # Unique candidate tags stay in fayeomni; ascend gets only rolling tags.
+    # Both repositories use rolling tags; copy the verified candidate by digest.
     for key, suffix, digest in records:
         target = f"{DEST}:nightly{suffix}"
         summary(f'Copy starting: `{SOURCE}@{digest}` → `{target}`')
