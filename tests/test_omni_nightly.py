@@ -13,7 +13,7 @@ from scripts import omni_nightly as nightly
 
 SHA = 'a' * 40
 DIGEST = 'sha256:' + 'b' * 64
-ENV = {'CANDIDATE_TAG': 'nightly-test', 'OMNI_SHA': SHA,
+ENV = {'CANDIDATE_TAG': 'nightly', 'OMNI_SHA': SHA,
        'SOURCE_AUTH': '/tmp/source-auth', 'DEST_AUTH': '/tmp/dest-auth',
        'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'c' * 40}
 
@@ -70,7 +70,7 @@ class NightlyTests(unittest.TestCase):
                 'quay.io/atlas-ci/vllm-ascend:v0.28.0' + suffix for _, suffix in nightly.VARIANTS])
             outputs = dict(c.args for c in output.call_args_list)
             self.assertEqual(outputs['sha'], SHA)
-            self.assertTrue(outputs['tag'].endswith('-123-1'))
+            self.assertEqual(outputs['tag'], 'nightly')
             self.assertEqual(len(json.loads(outputs['matrix'])['include']), 4)
 
     def test_base_failure_emits_no_build_outputs(self):
