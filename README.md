@@ -38,8 +38,8 @@ flowchart TD
 
 Build success alone does not satisfy either validation gate. Publishing copies
 the validated images, including all architectures, without rebuilding them.
-The workflows below are dispatched manually; they do not automatically enforce
-the hardware validation gates.
+The standard release workflows below are dispatched manually; they do not
+automatically enforce the hardware validation gates.
 
 ### Prerequisites
 
@@ -142,6 +142,62 @@ and inspect its destination-manifest output for `linux/amd64` and `linux/arm64`.
 A successful workflow dispatch only queues the copy; it does not mean publication
 has completed.
 
+## Omni nightly builds
+
+`build_omni_nightly.yaml` runs daily at **02:00 Asia/Shanghai** (`0 18 * * *`
+in UTC), with a manual trigger for reruns. GitHub schedules can be delayed.
+Each run resolves the latest `vllm-project/vllm-omni` main commit once, then
+builds A2/A3/A5/310P for both amd64 and arm64 using that exact SHA.
+
+The default base is `quay.io/atlas-ci/vllm-ascend:v0.28.0`, with `-a3`, `-a5`,
+and `-310p` suffixes. Optional Actions variables `OMNI_NIGHTLY_BASE_IMAGE` and
+`OMNI_NIGHTLY_BASE_TAG` override the repository and unsuffixed tag. Each base
+manifest must include both architectures and is pinned by digest for the run.
+The Dockerfile also accepts `VLLM_ASCEND_BASE` as a complete image reference
+and `VLLM_OMNI_COMMIT` as a full commit SHA; existing branch/tag builds retain
+their `VLLM_OMNI_REF` behavior when no commit is supplied.
+
+Images are first built in `quay.io/fayeomni/vllm-omni` with unique tags:
+`nightly-YYYYMMDD-<sha12>-<run_id>-<run_attempt>` and the hardware suffixes.
+After **all eight builds and all four manifest checks succeed**, the workflow
+checks each architecture's Omni revision label, then copies the images by
+digest to `quay.io/ascend/vllm-omni` with `skopeo copy --all --preserve-digests`.
+All four unique destination tags must verify before it updates `nightly`,
+`nightly-a3`, `nightly-a5`, and `nightly-310p` in the ascend repository.
+
+Configure `QUAY_USERNAME` / `QUAY_PASSWORD` for candidate builds and
+`ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` for publication, as described
+above. `QUAY_OAUTH_TOKEN` remains optional for cleaning interim per-arch tags.
+
+```bash
+gh workflow run build_omni_nightly.yaml --repo FayeSpica/ascend-image-ci
+```
+
+The workflow must be on the default branch for scheduled execution. Nightly
+runs share a concurrency group and do not cancel an in-progress run. Every
+night builds even when the upstream SHA is unchanged. When retrying a run,
+use **Re-run all jobs**, so prepare supplies a fresh attempt tag and all builds
+use the same resolved inputs; rerunning only failed jobs can reuse the original
+prepare outputs and candidate tags.
+
+A failed build or candidate check prevents publication to ascend. Registry
+updates across four tags are not atomic: a copy or verification failure can
+leave a partially published run. Job summaries record source/base digests,
+copy starts, copy completions and verified destinations to identify that state.
+Candidate history is retained; there is no automatic history pruning.
+
+Nightly publication is gated on builds and manifest/revision checks, **not real
+NPU model tests**. No hardware acceptance is claimed. The manual standard
+release process above retains its hardware validation requirements.
+
+Local checks for nightly changes:
+
+```bash
+python3 -m unittest discover -s tests -v
+actionlint .github/workflows/build_omni_nightly.yaml
+git diff --check
+```
+
 ## Model matrix
 
 The repository publishes the
@@ -151,6 +207,8 @@ with GitHub Pages through `deploy-pages.yaml`.
 ## Files
 
 - `.github/workflows/build_images.yaml` — Ascend build and optional upstream A2/A3 Omni build.
+- `.github/workflows/build_omni_nightly.yaml` — scheduled Omni builds and automatic retag to ascend.
+- `scripts/omni_nightly.py` — resolve pinned inputs and verify/promote nightly manifests.
 - `.github/workflows/build_omni_images.yaml` — four-variant Omni build using the local Dockerfile.
 - `.github/workflows/_build_push_image.yaml` — reusable multi-architecture build and manifest merge.
 - `.github/workflows/retag_image.yaml` — copy validated Ascend images to `atlas-ci`.

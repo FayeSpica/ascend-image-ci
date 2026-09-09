@@ -1,0 +1,117 @@
+name: Build Omni nightly
+
+on:
+  schedule:
+    # 02:00 Asia/Shanghai, daily (GitHub schedules may be delayed).
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omni-nightly-publication
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install skopeo
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+      - name: Authenticate candidate registry
+        env:
+          QUAY_USER: ${{ vars.QUAY_USERNAME }}
+          QUAY_PASS: ${{ secrets.QUAY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$QUAY_PASS" | skopeo login --authfile "$RUNNER_TEMP/source-auth.json" \
+            --username "$QUAY_USER" --password-stdin quay.io
+      - name: Resolve source SHA and base digests
+        id: resolve
+        env:
+          BASE_IMAGE: ${{ vars.OMNI_NIGHTLY_BASE_IMAGE }}
+          BASE_TAG: ${{ vars.OMNI_NIGHTLY_BASE_TAG }}
+          SOURCE_AUTH: ${{ runner.temp }}/source-auth.json
+        run: python3 scripts/omni_nightly.py prepare
+      - name: Remove registry credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/source-auth.json"
+
+  build:
+    needs: prepare
+    name: ${{ matrix.key }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    uses: ./.github/workflows/_build_push_image.yaml
+    with:
+      source_repo: ${{ github.repository }}
+      source_ref: ${{ github.sha }}
+      dockerfile: docker/vllm-omni/Dockerfile.npu
+      image: quay.io/fayeomni/vllm-omni
+      image_tag: ${{ needs.prepare.outputs.tag }}${{ matrix.suffix }}
+      artifact_key: ${{ matrix.key }}
+      build_args: |
+        VLLM_ASCEND_BASE=${{ matrix.base }}
+        VLLM_OMNI_COMMIT=${{ needs.prepare.outputs.sha }}
+        PATCH_310P_TRITON_RESIDUE=${{ matrix.patch }}
+    secrets: inherit
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install skopeo
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+      - name: Authenticate source and destination registries
+        env:
+          QUAY_USER: ${{ vars.QUAY_USERNAME }}
+          QUAY_PASS: ${{ secrets.QUAY_PASSWORD }}
+          ASCEND_USER: ${{ vars.ASCEND_QUAY_USERNAME }}
+          ASCEND_PASS: ${{ secrets.ASCEND_QUAY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$QUAY_PASS" | skopeo login --authfile "$RUNNER_TEMP/source-auth.json" \
+            --username "$QUAY_USER" --password-stdin quay.io
+          printf '%s' "$ASCEND_PASS" | skopeo login --authfile "$RUNNER_TEMP/dest-auth.json" \
+            --username "$ASCEND_USER" --password-stdin quay.io
+      - name: Verify all candidates and retag to ascend
+        env:
+          CANDIDATE_TAG: ${{ needs.prepare.outputs.tag }}
+          OMNI_SHA: ${{ needs.prepare.outputs.sha }}
+          SOURCE_AUTH: ${{ runner.temp }}/source-auth.json
+          DEST_AUTH: ${{ runner.temp }}/dest-auth.json
+        run: python3 scripts/omni_nightly.py publish
+      - name: Remove registry credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/source-auth.json" "$RUNNER_TEMP/dest-auth.json"
+
+  summary:
+    if: always()
+    needs: [prepare, build, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize nightly result
+        env:
+          OMNI_SHA: ${{ needs.prepare.outputs.sha }}
+          CANDIDATE_TAG: ${{ needs.prepare.outputs.tag }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: |
+          {
+            echo "Omni SHA: $OMNI_SHA"
+            echo "Candidate: $CANDIDATE_TAG"
+            echo "Recipe SHA: $GITHUB_SHA"
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "Prepare: $PREPARE_RESULT; build: $BUILD_RESULT; publish: $PUBLISH_RESULT"
+            echo "Real NPU model tests were not run."
+            echo "See prepare/publish job summaries for base and image digests and partial copy status."
+          } >> "$GITHUB_STEP_SUMMARY"
