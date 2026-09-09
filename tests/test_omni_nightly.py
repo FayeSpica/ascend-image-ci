@@ -88,22 +88,22 @@ class NightlyTests(unittest.TestCase):
                 nightly.publish()
             run.assert_not_called()
 
-    def test_copy_failure_stops_before_rolling(self):
+    def test_copy_failure_stops_remaining_publication(self):
         with patch.object(nightly, 'inspect', return_value=DIGEST), \
                 patch.object(nightly, 'run', side_effect=subprocess.CalledProcessError(1, 'skopeo')) as run:
             with self.assertRaises(subprocess.CalledProcessError):
                 nightly.publish()
             self.assertEqual(run.call_count, 1)
-            self.assertTrue(run.call_args.args[-1].endswith(':nightly-test'))
+            self.assertTrue(run.call_args.args[-1].endswith(':nightly'))
 
-    def test_destination_mismatch_stops_before_rolling(self):
+    def test_destination_mismatch_stops_remaining_publication(self):
         with patch.object(nightly, 'inspect', side_effect=[DIGEST] * 4 + ['sha256:bad']), \
                 patch.object(nightly, 'run') as run:
             with self.assertRaisesRegex(ValueError, 'expected'):
                 nightly.publish()
             self.assertEqual(run.call_count, 1)
 
-    def test_all_candidates_checked_before_copy_and_immutable_before_rolling(self):
+    def test_all_candidates_checked_before_copy_and_only_rolling_published(self):
         events = []
         def inspect(ref, *args, **kwargs):
             events.append(('inspect', ref))
@@ -117,8 +117,8 @@ class NightlyTests(unittest.TestCase):
             nightly.publish()
         self.assertEqual([kind for kind, _ in events[:4]], ['inspect'] * 4)
         copies = [ref for kind, ref in events if kind == 'copy']
-        self.assertEqual(copies, [f'docker://{nightly.DEST}:{tag}{suffix}'
-                                for tag in ('nightly-test', 'nightly') for _, suffix in nightly.VARIANTS])
+        self.assertEqual(copies, [f'docker://{nightly.DEST}:nightly{suffix}'
+                                for _, suffix in nightly.VARIANTS])
 
     def test_dockerfile_checkout_sha_and_branch(self):
         dockerfile = Path('docker/vllm-omni/Dockerfile.npu').read_text()

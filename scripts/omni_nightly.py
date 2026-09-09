@@ -97,20 +97,19 @@ def publish():
         records.append((key, suffix, digest))
         summary(f'Candidate {key}: `{ref}` → `{digest}`')
 
-    # All immutable copies must verify before the first rolling tag is changed.
-    for rolling in (False, True):
-        for key, suffix, digest in records:
-            target = f"{DEST}:{'nightly' if rolling else tag}{suffix}"
-            summary(f'Copy starting: `{SOURCE}@{digest}` → `{target}`')
-            run('skopeo', 'copy', '--all', '--preserve-digests',
-                '--src-authfile', src_auth, '--dest-authfile', dst_auth,
-                f'docker://{SOURCE}@{digest}', f'docker://{target}')
-            # If verification fails after a successful copy, record that distinction.
-            summary(f'Copy completed; verification pending: `{target}`')
-            actual = inspect(target, dst_auth, revision=sha)
-            if actual != digest:
-                raise ValueError(f'{target}: expected {digest}, got {actual}')
-            summary(f'Published and verified: `{target}` → `{digest}`')
+    # Unique candidate tags stay in fayeomni; ascend gets only rolling tags.
+    for key, suffix, digest in records:
+        target = f"{DEST}:nightly{suffix}"
+        summary(f'Copy starting: `{SOURCE}@{digest}` → `{target}`')
+        run('skopeo', 'copy', '--all', '--preserve-digests',
+            '--src-authfile', src_auth, '--dest-authfile', dst_auth,
+            f'docker://{SOURCE}@{digest}', f'docker://{target}')
+        # If verification fails after a successful copy, record that distinction.
+        summary(f'Copy completed; verification pending: `{target}`')
+        actual = inspect(target, dst_auth, revision=sha)
+        if actual != digest:
+            raise ValueError(f'{target}: expected {digest}, got {actual}')
+        summary(f'Published and verified: `{target}` → `{digest}`')
 
 
 if __name__ == '__main__':
