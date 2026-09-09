@@ -162,8 +162,9 @@ Images are first built in `quay.io/fayeomni/vllm-omni` with unique tags:
 After **all eight builds and all four manifest checks succeed**, the workflow
 checks each architecture's Omni revision label, then copies the images by
 digest to `quay.io/ascend/vllm-omni` with `skopeo copy --all --preserve-digests`.
-All four unique destination tags must verify before it updates `nightly`,
-`nightly-a3`, `nightly-a5`, and `nightly-310p` in the ascend repository.
+Only `nightly`, `nightly-a3`, `nightly-a5`, and `nightly-310p` are published
+to ascend. Unique candidate tags remain exclusively in fayeomni. Each copied
+rolling tag is verified against its candidate digest.
 
 Configure `QUAY_USERNAME` / `QUAY_PASSWORD` for candidate builds and
 `ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` for publication, as described
