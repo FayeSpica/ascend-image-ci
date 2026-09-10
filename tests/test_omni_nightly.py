@@ -183,5 +183,39 @@ class NightlyTests(unittest.TestCase):
                 self.assertEqual(actual, expected)
 
 
+class CleanupTests(unittest.TestCase):
+    def test_shared_rolling_digest_preserved_and_staging_removed(self):
+        old = 'nightly-20260827-abcdef0-a3'
+        recent = 'nightly-20260910-abcdef0-a3'
+        staging = recent + '-amd64'
+        before = {old: DIGEST, 'nightly-a3': DIGEST, recent: DIGEST, staging: DIGEST}
+        after = {'nightly-a3': DIGEST, recent: DIGEST}
+        with patch.object(nightly, 'Registry') as registry, \
+                patch.object(nightly, 'today', return_value=date(2026, 9, 10)), \
+                patch.object(nightly, 'summary'):
+            client = registry.return_value
+            client.inventory.side_effect = [before, after]
+            nightly.cleanup(nightly.SOURCE, 'user', 'password', [staging])
+            self.assertEqual([c.args[0] for c in client.delete_tag.call_args_list], [old, staging])
+
+    def test_unrelated_digest_change_is_reported(self):
+        with patch.object(nightly, 'Registry') as registry, patch.object(nightly, 'summary'):
+            registry.return_value.inventory.side_effect = [{'nightly': DIGEST}, {'nightly': 'changed'}]
+            with self.assertRaisesRegex(ValueError, 'inventory mismatch'):
+                nightly.cleanup(nightly.SOURCE, 'user', 'password')
+            registry.return_value.delete_tag.assert_not_called()
+
+    def test_inventory_reads_all_pages(self):
+        from unittest.mock import MagicMock
+        registry = nightly.Registry.__new__(nightly.Registry)
+        registry.repo = 'fayeomni/vllm-omni'
+        pages = [{'tags': [{'name': 'nightly', 'manifest_digest': DIGEST}], 'has_additional': True},
+                 {'tags': [{'name': 'nightly-a3', 'manifest_digest': DIGEST}], 'has_additional': False}]
+        with patch.object(nightly.urllib.request, 'urlopen', return_value=MagicMock()) as request, \
+                patch.object(nightly.json, 'load', side_effect=pages):
+            self.assertEqual(registry.inventory(), {'nightly': DIGEST, 'nightly-a3': DIGEST})
+            self.assertTrue(request.call_args.args[0].full_url.endswith('page=2'))
+
+
 if __name__ == '__main__':
     unittest.main()
