@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "example": true,
+  "releases": [
+    {
+      "date": "2026-09-10",
+      "vllm": {
+        "ref": "v0.28.0",
+        "prs": []
+      },
+      "ascend": {
+        "prs": [
+          15321
+        ],
+        "ref": "a7c91e2"
+      },
+      "omni": {
+        "ref": "bbac4df",
+        "prs": []
+      },
+      "images": {
+        "A2": "quay.io/ascend/vllm-omni:nightly-20260910-bbac4df",
+        "A3": "quay.io/ascend/vllm-omni:nightly-20260910-bbac4df-a3",
+        "A5": "quay.io/ascend/vllm-omni:nightly-20260910-bbac4df-a5",
+        "310P": "quay.io/ascend/vllm-omni:nightly-20260910-bbac4df-310p"
+      }
+    },
+    {
+      "date": "2026-09-09",
+      "vllm": {
+        "ref": "v0.28.0",
+        "prs": []
+      },
+      "ascend": {
+        "prs": [
+          15321
+        ],
+        "ref": "main"
+      },
+      "omni": {
+        "ref": "b6e49c3",
+        "prs": []
+      },
+      "images": {
+        "A2": "quay.io/ascend/vllm-omni:nightly-20260909-b6e49c3",
+        "A3": "quay.io/ascend/vllm-omni:nightly-20260909-b6e49c3-a3",
+        "A5": "quay.io/ascend/vllm-omni:nightly-20260909-b6e49c3-a5",
+        "310P": "quay.io/ascend/vllm-omni:nightly-20260909-b6e49c3-310p"
+      }
+    },
+    {
+      "date": "2026-09-08",
+      "vllm": {
+        "ref": "v0.28.0",
+        "prs": []
+      },
+      "ascend": {
+        "prs": [
+          15321,
+          15287
+        ],
+        "ref": "v0.28.0"
+      },
+      "omni": {
+        "ref": "8ca4f72",
+        "prs": []
+      },
+      "images": {
+        "A2": "quay.io/ascend/vllm-omni:nightly-20260908-8ca4f72",
+        "A3": "quay.io/ascend/vllm-omni:nightly-20260908-8ca4f72-a3",
+        "A5": "quay.io/ascend/vllm-omni:nightly-20260908-8ca4f72-a5",
+        "310P": "quay.io/ascend/vllm-omni:nightly-20260908-8ca4f72-310p"
+      }
+    },
+    {
+      "date": "2026-09-07",
+      "vllm": {
+        "ref": "v0.28.0",
+        "prs": []
+      },
+      "ascend": {
+        "prs": [],
+        "ref": "c31d8f0"
+      },
+      "omni": {
+        "ref": "main",
+        "prs": []
+      },
+      "images": {
+        "A2": "quay.io/ascend/vllm-omni:nightly-20260907-7f3d2b9",
+        "A3": "quay.io/ascend/vllm-omni:nightly-20260907-7f3d2b9-a3",
+        "A5": "quay.io/ascend/vllm-omni:nightly-20260907-7f3d2b9-a5",
+        "310P": "quay.io/ascend/vllm-omni:nightly-20260907-7f3d2b9-310p"
+      }
+    },
+    {
+      "date": "2026-09-06",
+      "vllm": {
+        "ref": "v0.27.0",
+        "prs": []
+      },
+      "ascend": {
+        "prs": [
+          15106
+        ],
+        "ref": "e92b6a4"
+      },
+      "omni": {
+        "ref": "5a9e1c8",
+        "prs": []
+      },
+      "images": {
+        "A2": "quay.io/ascend/vllm-omni:nightly-20260906-5a9e1c8",
+        "A3": "quay.io/ascend/vllm-omni:nightly-20260906-5a9e1c8-a3",
+        "A5": "quay.io/ascend/vllm-omni:nightly-20260906-5a9e1c8-a5",
+        "310P": "quay.io/ascend/vllm-omni:nightly-20260906-5a9e1c8-310p"
+      }
+    }
+  ]
+}

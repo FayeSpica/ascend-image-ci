@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nightly · vLLM Ascend / Omni</title>
+<style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172126;background:#f5f7f7;font-size:16px}*{box-sizing:border-box}body{margin:0}main{max-width:1440px;margin:auto;padding:40px 32px}header{display:flex;justify-content:space-between;gap:24px;align-items:center;border-bottom:1px solid #dce3e5;padding-bottom:25px}.brand{font-size:14px;font-weight:650;letter-spacing:.04em;color:#65747b}h1{font-size:32px;letter-spacing:-1px;margin:12px 0}p{color:#65747b;font-size:14px;line-height:1.7;margin:0}.demo{font-size:13px;background:#fff4d9;border:1px solid #e8ce91;padding:8px 12px;border-radius:6px;color:#775515;white-space:nowrap}.bar{display:flex;gap:16px;justify-content:space-between;align-items:center;margin:26px 0 16px}input{width:420px;max-width:100%;padding:12px 14px;border:1px solid #cbd5db;border-radius:7px;background:white;font:inherit;font-size:14px}.tabs{display:flex;gap:4px;padding:4px;background:#e8edef;border-radius:7px}button{font:inherit;cursor:pointer}.tab{border:0;background:transparent;color:#52646c;padding:8px 17px;border-radius:5px;font-size:14px}.tab[aria-pressed=true]{background:#172f39;color:white}.caption{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:#65747b;margin:0 0 12px}.table-wrap{overflow:auto;border:1px solid #dce3e5;border-radius:9px;background:white}table{border-collapse:collapse;width:100%;min-width:1050px;text-align:left}th{padding:16px 20px;background:#eef2f3;color:#586c76;font-size:13px;font-weight:600;white-space:nowrap}td{padding:23px 20px;border-top:1px solid #e4e9ec;font-size:14px;vertical-align:top}tbody tr:hover{background:#f8fbfc}tbody tr:first-child{background:#f5fafb}.date{font-weight:650;white-space:nowrap}.sub{display:block;margin-top:7px;color:#7b8b92;font-size:12px}.pill{display:inline-block;color:#256c6d;background:#e1f0ee;padding:3px 7px;border-radius:4px;font-size:11px;margin-left:8px;font-weight:600}.mono,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.sha{color:#285d80;font-weight:600}.patch{display:block;margin-top:8px;color:#526b79;font-size:12px}.image{display:flex;align-items:center;gap:12px}.image code{font-size:12px;white-space:nowrap}.copy{border:1px solid #d3dfe4;color:#34505f;background:white;border-radius:5px;padding:6px 9px;font-size:12px;white-space:nowrap}.copy:hover{border-color:#52778b}footer{display:flex;gap:24px;justify-content:space-between;padding-top:18px;font-size:12px;color:#788992;line-height:1.8}#empty{text-align:center;padding:36px;color:#65747b}#notice{min-height:24px;font-size:13px;color:#285d80;margin-top:12px}button:focus-visible,input:focus-visible{outline:3px solid #8bc2dc;outline-offset:3px}@media(max-width:750px){main{padding:24px 16px}header{align-items:flex-start;flex-direction:column;gap:8px}.bar{align-items:stretch;flex-direction:column}input{width:100%}.tabs{align-self:flex-start}.caption,footer{flex-direction:column;gap:6px}h1{font-size:28px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="brand">vLLM Ascend / Omni</div><h1>Nightly 版本配套表</h1><p>按 nightly 执行日期查询源码版本与镜像地址。</p></div><span class="demo">预览 · 全部为示例数据</span></header>
+<div class="bar"><input id="search" type="search" aria-label="搜索日期、版本、tag、branch、SHA 或 PR" placeholder="搜索日期、版本、tag、branch、SHA 或 PR…"><div class="tabs" role="group" aria-label="硬件型号"><button class="tab" aria-pressed="true" data-hw="A2">A2</button><button class="tab" aria-pressed="false" data-hw="A3">A3</button><button class="tab" aria-pressed="false" data-hw="A5">A5</button><button class="tab" aria-pressed="false" data-hw="310P">310P</button></div></div>
+<div class="caption"><span id="count"></span><span>日期按北京时间 UTC+8</span></div>
+<div class="table-wrap"><table><thead><tr><th>Nightly 执行日期 ↓</th><th>vLLM</th><th>vLLM-Ascend</th><th>vLLM-Omni</th><th>Quay 镜像地址</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" hidden>没有匹配的版本记录，请尝试其他关键词。</div></div>
+<div id="notice" role="status" aria-live="polite"></div>
+<footer><span>镜像标签：nightly-日期-Omni 短 SHA，A3 / A5 / 310P 附硬件后缀。</span><span>构建发布记录不代表已通过 NPU 模型验证。</span></footer>
+</main>
+<script>
+let records=[];
+let example=true;
+let hardware='A2';
+function escapeHTML(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function displayRef(ref){return /^[a-f0-9]{7,40}$/i.test(ref)?ref.slice(0,7):ref;}
+function imageRef(row){return row.images[hardware] || '';}
+async function load(){
+ try{
+  const response=await fetch('./releases.json',{cache:'no-store'});
+  if(!response.ok) throw new Error('HTTP '+response.status);
+  const data=await response.json();
+  if(data.schema_version!==1 || typeof data.example!=='boolean' || !Array.isArray(data.releases)) throw new Error('JSON 格式不正确');
+  for(const r of data.releases){
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date) || !['vllm','ascend','omni'].every(name=>{const c=r[name];return c && typeof c.ref==='string' && c.ref.trim() && Array.isArray(c.prs) && c.prs.every(p=>Number.isInteger(p)&&p>0);}) || !r.images || Object.entries(r.images).some(([k,v])=>!['A2','A3','A5','310P'].includes(k)||typeof v!=='string'||!/^quay\.io\/[^\s]+$/.test(v))) throw new Error('版本记录字段不正确');
+  }
+  example=data.example;
+  document.querySelector('.demo').textContent=example?'预览 · 全部为示例数据':'Nightly 发布记录';
+  records=data.releases.sort((a,b)=>b.date.localeCompare(a.date));render();
+ }catch(error){document.querySelector('#count').textContent='加载失败';document.querySelector('#notice').textContent='无法读取 releases.json：'+error.message;}
+}
+function render(){
+ const query=document.querySelector('#search').value.trim().toLowerCase();
+ const filtered=records.filter(row=>[row.date,...['vllm','ascend','omni'].flatMap(name=>[row[name].ref,...row[name].prs.map(p=>'PR #'+p)])].join(' ').toLowerCase().includes(query));
+ document.querySelector('#count').textContent=filtered.length+' 条发布记录 · '+hardware;
+ document.querySelector('#empty').hidden=filtered.length>0;
+ const body=document.querySelector('#rows');body.replaceChildren();
+ for(const row of filtered){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><span class="date">${escapeHTML(row.date)}</span>${row===records[0]?'<span class="pill">最新</span>':''}<span class="sub">${example?'示例发布':'发布记录'}</span></td>${['vllm','ascend','omni'].map(name=>`<td><span class="mono sha">${escapeHTML(displayRef(row[name].ref))}</span><span class="patch">${row[name].prs.length?row[name].prs.map(p=>'+ PR #'+p).join('　'):'无额外补丁'}</span></td>`).join('')}<td><div class="image"><code></code><button class="copy" type="button">复制</button></div><span class="sub">日期 + Omni 短 SHA · ${hardware}</span></td>`;
+  tr.querySelector('code').textContent=imageRef(row)||'未发布';
+  tr.querySelector('button').disabled=!imageRef(row);
+  tr.querySelector('button').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(imageRef(row));document.querySelector('#notice').textContent=example?'已复制示例镜像地址（PoC 数据，请勿用于部署）。':'已复制镜像地址。';}catch{document.querySelector('#notice').textContent='无法访问剪贴板，请选中镜像地址手动复制。';}});
+  body.append(tr);
+ }
+}
+document.querySelector('#search').addEventListener('input',render);
+document.querySelectorAll('.tab').forEach(button=>button.addEventListener('click',()=>{hardware=button.dataset.hw;document.querySelectorAll('.tab').forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));render();}));
+load();
+</script>
+</body>
+</html>

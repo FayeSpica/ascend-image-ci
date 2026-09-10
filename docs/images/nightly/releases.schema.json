@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nightly release catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "example",
+    "releases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "example": {
+      "type": "boolean"
+    },
+    "releases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "vllm",
+          "ascend",
+          "omni",
+          "images"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "vllm": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "prs"
+            ],
+            "properties": {
+              "prs": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Git tag, commit SHA, or branch name."
+              }
+            }
+          },
+          "ascend": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "prs"
+            ],
+            "properties": {
+              "prs": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Git tag, commit SHA, or branch name."
+              }
+            }
+          },
+          "omni": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "prs"
+            ],
+            "properties": {
+              "prs": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Git tag, commit SHA, or branch name."
+              }
+            }
+          },
+          "images": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "A2": {
+                "type": "string",
+                "pattern": "^quay\\.io/[^\\s]+$"
+              },
+              "A3": {
+                "type": "string",
+                "pattern": "^quay\\.io/[^\\s]+$"
+              },
+              "A5": {
+                "type": "string",
+                "pattern": "^quay\\.io/[^\\s]+$"
+              },
+              "310P": {
+                "type": "string",
+                "pattern": "^quay\\.io/[^\\s]+$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
