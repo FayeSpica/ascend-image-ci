@@ -157,24 +157,11 @@ jobs:
       fail-fast: false
       matrix:
         variant:
-          - dockerfile: Dockerfile
-            suffix: ''
-            key: ascend-a2
-            max_jobs: ''
-          - dockerfile: Dockerfile.a3
-            suffix: '-a3'
-            key: ascend-a3
-            max_jobs: ''
-          - dockerfile: Dockerfile.310p
-            suffix: '-310p'
-            key: ascend-310p
-            max_jobs: ''
           - dockerfile: Dockerfile.a5
             suffix: '-a5'
             key: ascend-a5
-            # The 950 kernel build OOMs the GitHub-hosted runner at full
-            # parallelism ("runner has received a shutdown signal"); cap it.
-            max_jobs: '2'
+            # Test whether serial compilation avoids runner shutdown.
+            max_jobs: '1'
     uses: ./.github/workflows/_build_push_image.yaml
     with:
       source_repo: vllm-project/vllm-ascend

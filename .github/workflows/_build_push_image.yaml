@@ -74,9 +74,6 @@ jobs:
           - platform: linux/amd64
             runner: ubuntu-latest
             tag: amd64
-          - platform: linux/arm64
-            runner: ubuntu-22.04-arm
-            tag: arm64
     steps:
       - name: Checkout ${{ inputs.source_repo }}@${{ inputs.source_ref }}
         uses: actions/checkout@v6
@@ -140,6 +137,7 @@ jobs:
           set -euo pipefail
           sed -i '/^FROM /a ENV MAX_JOBS=${{ inputs.max_jobs }}' "${{ inputs.dockerfile }}"
           grep -n 'MAX_JOBS' "${{ inputs.dockerfile }}"
+          sed -i 's/python3 -m pip install -e /python3 -m pip install -v -e /' "${{ inputs.dockerfile }}"
 
       # Push to a per-arch tag (not push-by-digest): Quay garbage-collects
       # untagged digests, which can race with slow builds and break the merge.
@@ -157,6 +155,7 @@ jobs:
           build-args: ${{ inputs.build_args }}
 
   merge:
+    if: ${{ false }}
     name: merge ${{ inputs.artifact_key }}
     runs-on: ubuntu-latest
     needs: build-push
