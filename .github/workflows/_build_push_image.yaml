@@ -130,17 +130,48 @@ jobs:
           username: ${{ vars.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
-      # Some variants (e.g. Ascend 950/a5) compile enough custom kernels to
-      # exhaust the GitHub-hosted runner's memory at full nproc parallelism,
-      # which kills the runner mid-build ("runner has received a shutdown
-      # signal"). vllm-ascend's setup.py reads MAX_JOBS from the environment,
-      # so inject an ENV into the Dockerfile to cap compile parallelism.
-      - name: Cap build parallelism (MAX_JOBS=${{ inputs.max_jobs }})
+      - name: Configure compiler diagnostics
+        if: ${{ inputs.max_jobs != '' }}
+        env:
+          DOCKERFILE: ${{ inputs.dockerfile }}
+        run: |
+          python3 - <<'PYCODE'
+          import os
+          from pathlib import Path
+          p = Path(os.environ["DOCKERFILE"])
+          text = p.read_text()
+          needle = "python3 -m pip install -e /vllm-workspace/vllm-ascend/"
+          if needle not in text:
+              raise SystemExit("Expected vllm-ascend install command not found")
+          text = text.replace(needle, 'echo "[build-diag] MAX_JOBS=$MAX_JOBS CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS" && test "$MAX_JOBS" = "${BUILD_DIAG_EXPECTED_JOBS}" && python3 -m pip install -v -e /vllm-workspace/vllm-ascend/')
+          lines = text.splitlines()
+          for i in reversed(range(len(lines))):
+              if lines[i].startswith("FROM "):
+                  lines.insert(i + 1, "ARG BUILD_DIAG_EXPECTED_JOBS")
+          p.write_text("\n".join(lines) + "\n")
+          PYCODE
+
+      - name: Start runner resource diagnostics
         if: ${{ inputs.max_jobs != '' }}
         run: |
-          set -euo pipefail
-          sed -i '/^FROM /a ENV MAX_JOBS=${{ inputs.max_jobs }}' "${{ inputs.dockerfile }}"
-          grep -n 'MAX_JOBS' "${{ inputs.dockerfile }}"
+          mkdir -p "$RUNNER_TEMP/build-diag"
+          cat > "$RUNNER_TEMP/build-diag/monitor.sh" <<'SCRIPT'
+          while true; do
+            date -u '+[build-diag] %FT%TZ'
+            free -m
+            df -h / /var/lib/docker
+            ps -eo pid,ppid,comm,rss,%cpu --sort=-rss | head -20
+            timeout 5 docker stats --no-stream --format '{{.Name}} memory={{.MemUsage}} cpu={{.CPUPerc}} pids={{.PIDs}}' || true
+            cat /proc/pressure/memory
+            sleep 10
+          done
+          SCRIPT
+          nohup bash "$RUNNER_TEMP/build-diag/monitor.sh" > "$RUNNER_TEMP/build-diag/resources.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/build-diag/monitor.pid"
+          nohup sudo journalctl -k -f --since now -o short-iso > "$RUNNER_TEMP/build-diag/kernel.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/build-diag/kernel.pid"
+          tail -F "$RUNNER_TEMP/build-diag/resources.log" "$RUNNER_TEMP/build-diag/kernel.log" &
+          echo $! > "$RUNNER_TEMP/build-diag/tail.pid"
 
       # Push to a per-arch tag (not push-by-digest): Quay garbage-collects
       # untagged digests, which can race with slow builds and break the merge.
@@ -155,7 +186,27 @@ jobs:
           push: true
           provenance: false
           tags: ${{ inputs.image }}:${{ inputs.image_tag }}-${{ matrix.arch.tag }}
-          build-args: ${{ inputs.build_args }}
+          build-args: |
+            ${{ inputs.build_args }}
+            ${{ inputs.max_jobs != '' && format('MAX_JOBS={0}', inputs.max_jobs) || '' }}
+            ${{ inputs.max_jobs != '' && format('BUILD_DIAG_EXPECTED_JOBS={0}', inputs.max_jobs) || '' }}
+
+      - name: Stop resource diagnostics
+        if: ${{ always() && inputs.max_jobs != '' }}
+        run: |
+          for file in "$RUNNER_TEMP"/build-diag/*.pid; do
+            [ -f "$file" ] && kill "$(cat "$file")" 2>/dev/null || true
+          done
+          tail -100 "$RUNNER_TEMP/build-diag/resources.log" || true
+          tail -100 "$RUNNER_TEMP/build-diag/kernel.log" || true
+
+      - name: Upload resource diagnostics
+        if: ${{ always() && inputs.max_jobs != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diag-${{ inputs.artifact_key }}-${{ matrix.arch.tag }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/build-diag/*.log
+          if-no-files-found: warn
 
   merge:
     name: merge ${{ inputs.artifact_key }}
