@@ -5,6 +5,11 @@ on:
     # 02:00 Asia/Shanghai, daily (GitHub schedules may be delayed).
     - cron: '0 18 * * *'
   workflow_dispatch:
+    inputs:
+      retag_to_ascend:
+        description: 'Also publish verified images to ascend'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -70,24 +75,34 @@ jobs:
       - uses: actions/checkout@v6
       - name: Install skopeo
         run: sudo apt-get update && sudo apt-get install -y skopeo
-      - name: Authenticate source and destination registries
+      - name: Authenticate source registry
         env:
           QUAY_USER: ${{ vars.QUAY_USERNAME }}
           QUAY_PASS: ${{ secrets.QUAY_PASSWORD }}
-          ASCEND_USER: ${{ vars.ASCEND_QUAY_USERNAME }}
-          ASCEND_PASS: ${{ secrets.ASCEND_QUAY_PASSWORD }}
         run: |
           set -euo pipefail
           printf '%s' "$QUAY_PASS" | skopeo login --authfile "$RUNNER_TEMP/source-auth.json" \
             --username "$QUAY_USER" --password-stdin quay.io
+      - name: Authenticate destination registry
+        if: github.event_name == 'schedule' || inputs.retag_to_ascend
+        env:
+          ASCEND_USER: ${{ vars.ASCEND_QUAY_USERNAME }}
+          ASCEND_PASS: ${{ secrets.ASCEND_QUAY_PASSWORD }}
+        run: |
+          set -euo pipefail
           printf '%s' "$ASCEND_PASS" | skopeo login --authfile "$RUNNER_TEMP/dest-auth.json" \
             --username "$ASCEND_USER" --password-stdin quay.io
-      - name: Verify all candidates and retag to ascend
+      - name: Verify candidates, publish nightly aliases, and prune history
         env:
           CANDIDATE_TAG: ${{ needs.prepare.outputs.tag }}
           OMNI_SHA: ${{ needs.prepare.outputs.sha }}
           SOURCE_AUTH: ${{ runner.temp }}/source-auth.json
           DEST_AUTH: ${{ runner.temp }}/dest-auth.json
+          RETAG_TO_ASCEND: ${{ github.event_name == 'schedule' || inputs.retag_to_ascend }}
+          QUAY_USER: ${{ vars.QUAY_USERNAME }}
+          QUAY_PASS: ${{ secrets.QUAY_PASSWORD }}
+          ASCEND_USER: ${{ (github.event_name == 'schedule' || inputs.retag_to_ascend) && vars.ASCEND_QUAY_USERNAME || '' }}
+          ASCEND_PASS: ${{ (github.event_name == 'schedule' || inputs.retag_to_ascend) && secrets.ASCEND_QUAY_PASSWORD || '' }}
         run: python3 scripts/omni_nightly.py publish
       - name: Remove registry credentials
         if: always()

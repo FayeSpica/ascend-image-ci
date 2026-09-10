@@ -1,5 +1,6 @@
 """Failure gates for nightly publication (no registry writes)."""
 
+from datetime import date
 import hashlib
 import json
 import os
@@ -13,8 +14,8 @@ from scripts import omni_nightly as nightly
 
 SHA = 'a' * 40
 DIGEST = 'sha256:' + 'b' * 64
-ENV = {'CANDIDATE_TAG': 'nightly', 'OMNI_SHA': SHA,
-       'SOURCE_AUTH': '/tmp/source-auth', 'DEST_AUTH': '/tmp/dest-auth',
+ENV = {'CANDIDATE_TAG': 'nightly-20260910-aaaaaaa', 'OMNI_SHA': SHA,
+       'QUAY_USER': 'user', 'QUAY_PASS': 'secret', 'SOURCE_AUTH': '/tmp/source-auth', 'DEST_AUTH': '/tmp/dest-auth',
        'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'c' * 40}
 
 
@@ -30,6 +31,8 @@ class NightlyTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.log = patch.object(nightly, 'summary').start()
+        patch.object(nightly, 'today', return_value=date(2026, 9, 10)).start()
+        self.cleanup = patch.object(nightly, 'cleanup').start()
         self.addCleanup(patch.stopall)
 
     def test_missing_architecture_rejected(self):
@@ -70,7 +73,7 @@ class NightlyTests(unittest.TestCase):
                 'quay.io/atlas-ci/vllm-ascend:v0.28.0' + suffix for _, suffix in nightly.VARIANTS])
             outputs = dict(c.args for c in output.call_args_list)
             self.assertEqual(outputs['sha'], SHA)
-            self.assertEqual(outputs['tag'], 'nightly')
+            self.assertEqual(outputs['tag'], 'nightly-20260910-aaaaaaa')
             self.assertEqual(len(json.loads(outputs['matrix'])['include']), 4)
 
     def test_base_failure_emits_no_build_outputs(self):
@@ -117,8 +120,44 @@ class NightlyTests(unittest.TestCase):
             nightly.publish()
         self.assertEqual([kind for kind, _ in events[:4]], ['inspect'] * 4)
         copies = [ref for kind, ref in events if kind == 'copy']
-        self.assertEqual(copies, [f'docker://{nightly.DEST}:nightly{suffix}'
+        self.assertEqual(copies, [f'docker://{nightly.SOURCE}:nightly{suffix}'
                                 for _, suffix in nightly.VARIANTS])
+
+    def test_retention_boundary_and_unrelated_tags(self):
+        tags = ['nightly-20260827-abcdef0', 'nightly-20260828-abcdef0-a3-arm64',
+                'nightly-20260829-abcdef0', 'nightly-20260910-abcdef0',
+                'nightly', 'nightly-a3', 'v0.28.0', 'nightly-20260230-abcdef0',
+                'nightly-20260801-abcdef012345-123-1', 'nightly-20260801-abcdef0-custom']
+        self.assertEqual(nightly.expired_tags(tags, date(2026, 9, 10)), tags[:1])
+
+    def test_optional_ascend_publishes_dated_and_rolling(self):
+        with patch.dict(os.environ, RETAG_TO_ASCEND='true', ASCEND_USER='user', ASCEND_PASS='secret'), \
+                patch.object(nightly, 'inspect', return_value=DIGEST), patch.object(nightly, 'run') as run:
+            nightly.publish()
+        refs = [c.args[-1] for c in run.call_args_list]
+        self.assertEqual(len(refs), 12)
+        self.assertEqual(refs[4:], [f'docker://{nightly.DEST}:{tag}{suffix}'
+                         for _, suffix in nightly.VARIANTS
+                         for tag in (ENV['CANDIDATE_TAG'], 'nightly')])
+        self.assertEqual(self.cleanup.call_count, 2)
+
+    def test_default_never_accesses_ascend(self):
+        with patch.object(nightly, 'inspect', return_value=DIGEST) as inspect, \
+                patch.object(nightly, 'run') as run:
+            nightly.publish()
+        self.assertTrue(all(nightly.DEST not in str(c) for c in inspect.call_args_list + run.call_args_list))
+        self.assertEqual(self.cleanup.call_count, 1)
+        self.assertEqual(len(self.cleanup.call_args.args[3]), 8)
+
+    def test_registry_delete_uses_tag_not_digest(self):
+        registry = nightly.Registry.__new__(nightly.Registry)
+        registry.repo, registry.token = 'fayeomni/vllm-omni', 'token'
+        with patch.object(nightly.urllib.request, 'urlopen') as request:
+            request.return_value.__enter__.return_value.status = 202
+            registry.delete_tag('nightly-20260801-abcdef0-a3')
+        self.assertEqual(request.call_args.args[0].full_url,
+                         'https://quay.io/v2/fayeomni/vllm-omni/manifests/nightly-20260801-abcdef0-a3')
+        self.assertEqual(request.call_args.args[0].method, 'DELETE')
 
     def test_dockerfile_checkout_sha_and_branch(self):
         dockerfile = Path('docker/vllm-omni/Dockerfile.npu').read_text()

@@ -157,37 +157,46 @@ The Dockerfile also accepts `VLLM_ASCEND_BASE` as a complete image reference
 and `VLLM_OMNI_COMMIT` as a full commit SHA; existing branch/tag builds retain
 their `VLLM_OMNI_REF` behavior when no commit is supplied.
 
-Images are first built in `quay.io/fayeomni/vllm-omni` using rolling tags:
-`nightly`, `nightly-a3`, `nightly-a5`, and `nightly-310p`. Each run overwrites
-these tags; per-architecture staging tags also use fixed names.
-After **all eight builds and all four manifest checks succeed**, the workflow
-checks each architecture's Omni revision label, then copies the images by
-digest to `quay.io/ascend/vllm-omni` with `skopeo copy --all --preserve-digests`.
-Only `nightly`, `nightly-a3`, `nightly-a5`, and `nightly-310p` are published
-to ascend. Each copied rolling tag is verified against its candidate digest.
-Neither repository receives new date, commit, or run-specific nightly tags.
+Images are first built in `quay.io/fayeomni/vllm-omni` with tags such as
+`nightly-20260910-6fb7b0a`, plus `-a3`, `-a5`, and `-310p`. The date uses
+Asia/Shanghai and the suffix is the first seven characters of the source Git
+commit. Rerunning the same commit on the same date overwrites those tags.
+After all eight builds and all four multi-architecture revision checks pass,
+the verified digests are copied to the four rolling `nightly` aliases in
+`fayeomni`. Copies preserve digests and are verified after publication.
 
-Configure `QUAY_USERNAME` / `QUAY_PASSWORD` for candidate builds and
-`ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` for publication, as described
-above. `QUAY_OAUTH_TOKEN` remains optional for cleaning interim per-arch tags.
+Manual runs default to candidate-only publication. Scheduled runs also copy
+both dated and rolling tags to `quay.io/ascend/vllm-omni`; manual runs can
+explicitly enable that step with `retag_to_ascend=true`.
 
 ```bash
-gh workflow run build_omni_nightly.yaml --repo FayeSpica/ascend-image-ci
+# Build, verify, and publish only to fayeomni.
+gh workflow run build_omni_nightly.yaml --repo FayeSpica/ascend-image-ci \
+  -f retag_to_ascend=false
 ```
+
+Configure `QUAY_USERNAME` / `QUAY_PASSWORD` for candidate builds and cleanup.
+`ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` are used only when retagging
+is enabled. Registry credentials must permit deleting tags. Cleanup uses the
+Quay Registry API's tag route, never deletion by digest or inherited expiry
+labels, so tags sharing a digest remain intact.
+
+After successful publication, each participating repository retains dated
+nightly tags from today and the previous 13 calendar dates (14 days total).
+Older tags matching `nightly-YYYYMMDD-<7 hex characters>` and the recognized
+hardware/architecture suffixes are removed. Other tags, including rolling
+aliases, releases, and legacy run-ID tags, are preserved. Successful runs also
+remove their eight per-architecture staging tags. Failed builds do not advance
+rolling tags or trigger cleanup; expired leftovers are pruned after a later
+successful run. Cleanup verifies the remaining tag-to-digest inventory.
 
 The workflow must be on the default branch for scheduled execution. Nightly
 runs share a concurrency group and do not cancel an in-progress run. Every
-night builds even when the upstream SHA is unchanged. When retrying a run,
-use **Re-run all jobs**, so all builds use the same resolved inputs. Avoid
-rerunning only failed jobs against staging tags that a later run may overwrite.
+night builds even when upstream is unchanged. Use **Re-run all jobs** when
+retrying so every build uses the same resolved inputs.
 
-A failed build or candidate check prevents publication to ascend. Registry
-updates across four tags are not atomic: a copy or verification failure can
-leave a partially published run. Job summaries record source/base digests,
-copy starts, copy completions and verified destinations to identify that state.
-Historical nightly images are not retained by this workflow. Source revisions
-and digests remain in image metadata and job summaries. Previously published
-long tags require separate cleanup; this change does not delete them.
+Publication across tags is not atomic. A copy or verification failure can
+leave partial publication; job summaries record each copy and verification.
 
 Nightly publication is gated on builds and manifest/revision checks, **not real
 NPU model tests**. No hardware acceptance is claimed. The manual standard

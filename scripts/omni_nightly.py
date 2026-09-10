@@ -1,5 +1,11 @@
 """Resolve and promote nightly images; publication starts only after all checks pass."""
 
+import base64
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+import urllib.request
+import urllib.parse
+
 import hashlib
 import json
 import os
@@ -61,7 +67,7 @@ def prepare():
     if len(sha) != 2 or not re.fullmatch('[0-9a-f]{40}', sha[0]) or sha[1] != 'refs/heads/main':
         raise ValueError('Cannot resolve upstream main to one full commit SHA')
     sha = sha[0]
-    tag = 'nightly'
+    tag = f'nightly-{today():%Y%m%d}-{sha[:7]}'
     base_image = os.environ.get('BASE_IMAGE') or 'quay.io/atlas-ci/vllm-ascend'
     base_tag = os.environ.get('BASE_TAG') or 'v0.28.0'
     # These values enter a newline-separated Docker build-args input.
@@ -82,31 +88,110 @@ def prepare():
     output('matrix', json.dumps({'include': matrix}, separators=(',', ':')))
 
 
+def today():
+    return datetime.now(ZoneInfo('Asia/Shanghai')).date()
+
+
+def expired_tags(tags, current_date):
+    # Keep today and the previous 13 calendar dates, including staging tags.
+    cutoff = current_date - timedelta(days=13)
+    expired = []
+    for tag in tags:
+        match = re.fullmatch(r'nightly-(\d{8})-[0-9a-f]{7}(?:-a3|-a5|-310p)?(?:-amd64|-arm64)?', tag)
+        if match:
+            try:
+                date = datetime.strptime(match[1], '%Y%m%d').date()
+            except ValueError:
+                continue
+            if date < cutoff:
+                expired.append(tag)
+    return sorted(expired)
+
+
+class Registry:
+    def __init__(self, image, username, password):
+        self.repo = image.removeprefix('quay.io/')
+        if not image.startswith('quay.io/') or not username or not password:
+            raise ValueError('Quay repository and credentials required')
+        basic = base64.b64encode(f'{username}:{password}'.encode()).decode()
+        query = urllib.parse.urlencode({'service': 'quay.io', 'scope': f'repository:{self.repo}:*'})
+        req = urllib.request.Request('https://quay.io/v2/auth?' + query,
+                                     headers={'Authorization': 'Basic ' + basic})
+        with urllib.request.urlopen(req, timeout=60) as response:
+            self.token = json.load(response)['token']
+
+    def inventory(self):
+        tags = {}
+        page = 1
+        while True:
+            req = urllib.request.Request(
+                f'https://quay.io/api/v1/repository/{self.repo}/tag/?limit=100&onlyActiveTags=true&page={page}')
+            with urllib.request.urlopen(req, timeout=60) as response:
+                data = json.load(response)
+            tags.update({tag['name']: tag['manifest_digest'] for tag in data['tags']})
+            if not data['has_additional']:
+                return tags
+            page += 1
+
+    def delete_tag(self, tag):
+        # Quay's tag route deletes only the pointer, unlike DELETE by digest.
+        if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}', tag):
+            raise ValueError('Invalid tag')
+        req = urllib.request.Request(f'https://quay.io/v2/{self.repo}/manifests/{tag}', method='DELETE',
+                                     headers={'Authorization': 'Bearer ' + self.token})
+        with urllib.request.urlopen(req, timeout=60) as response:
+            if response.status not in (202, 204):
+                raise ValueError(f'Delete {tag}: HTTP {response.status}')
+        summary(f'Deleted tag: `{self.repo}:{tag}`')
+
+
+def cleanup(image, username, password, staging=()):
+    registry = Registry(image, username, password)
+    before = registry.inventory()
+    targets = set(expired_tags(before, today())) | (set(staging) & before.keys())
+    for tag in sorted(targets):
+        registry.delete_tag(tag)
+    after = registry.inventory()
+    if after != {tag: digest for tag, digest in before.items() if tag not in targets}:
+        raise ValueError(f'{image}: cleanup inventory mismatch')
+    summary(f'Cleanup verified: `{image}`; removed {len(targets)} tags; all other tag digests unchanged.')
+
+
 def publish():
     tag = os.environ['CANDIDATE_TAG']
     sha = os.environ['OMNI_SHA']
-    src_auth, dst_auth = os.environ['SOURCE_AUTH'], os.environ['DEST_AUTH']
+    if not re.fullmatch(r'nightly-\d{8}-[0-9a-f]{7}', tag) or tag[-7:] != sha[:7]:
+        raise ValueError('Invalid dated candidate tag or SHA mismatch')
+    src_auth = os.environ['SOURCE_AUTH']
     records = []
-    # Complete this entire loop before any write to the destination registry.
     for key, suffix in VARIANTS:
         ref = f'{SOURCE}:{tag}{suffix}'
         digest = inspect(ref, src_auth, revision=sha)
         records.append((key, suffix, digest))
         summary(f'Candidate {key}: `{ref}` → `{digest}`')
 
-    # Both repositories use rolling tags; copy the verified candidate by digest.
-    for key, suffix, digest in records:
-        target = f"{DEST}:nightly{suffix}"
-        summary(f'Copy starting: `{SOURCE}@{digest}` → `{target}`')
-        run('skopeo', 'copy', '--all', '--preserve-digests',
-            '--src-authfile', src_auth, '--dest-authfile', dst_auth,
-            f'docker://{SOURCE}@{digest}', f'docker://{target}')
-        # If verification fails after a successful copy, record that distinction.
-        summary(f'Copy completed; verification pending: `{target}`')
-        actual = inspect(target, dst_auth, revision=sha)
-        if actual != digest:
-            raise ValueError(f'{target}: expected {digest}, got {actual}')
-        summary(f'Published and verified: `{target}` → `{digest}`')
+    destinations = [(SOURCE, src_auth, False)]
+    if os.environ.get('RETAG_TO_ASCEND', 'false') == 'true':
+        destinations.append((DEST, os.environ['DEST_AUTH'], True))
+    for image, auth, include_dated in destinations:
+        for key, suffix, digest in records:
+            tags = [f'{tag}{suffix}', f'nightly{suffix}'] if include_dated else [f'nightly{suffix}']
+            for target_tag in tags:
+                target = f'{image}:{target_tag}'
+                summary(f'Copy starting: `{SOURCE}@{digest}` → `{target}`')
+                run('skopeo', 'copy', '--all', '--preserve-digests',
+                    '--src-authfile', src_auth, '--dest-authfile', auth,
+                    f'docker://{SOURCE}@{digest}', f'docker://{target}')
+                summary(f'Copy completed; verification pending: `{target}`')
+                actual = inspect(target, auth, revision=sha)
+                if actual != digest:
+                    raise ValueError(f'{target}: expected {digest}, got {actual}')
+                summary(f'Published and verified: `{target}` → `{digest}`')
+
+    staging = [f'{tag}{suffix}-{arch}' for _, suffix in VARIANTS for arch in ('amd64', 'arm64')]
+    cleanup(SOURCE, os.environ['QUAY_USER'], os.environ['QUAY_PASS'], staging)
+    if os.environ.get('RETAG_TO_ASCEND', 'false') == 'true':
+        cleanup(DEST, os.environ['ASCEND_USER'], os.environ['ASCEND_PASS'])
 
 
 if __name__ == '__main__':
