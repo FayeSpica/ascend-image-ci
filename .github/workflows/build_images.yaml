@@ -24,6 +24,10 @@ on:
           - ascend+omni
           - ascend
           - omni
+      a5_only:
+        description: 'Build only the A5 variant when ascend is selected'
+        type: boolean
+        default: false
       vllm_tag:
         description: 'vLLM tag/branch (VLLM_TAG build-arg, git clone -b). Ignored when vllm_commit is set. A pre-tag release branch like releases/v0.24.0 is allowed; the published image tag uses the branch basename (v0.24.0).'
         type: string
@@ -172,9 +176,24 @@ jobs:
           - dockerfile: Dockerfile.a5
             suffix: '-a5'
             key: ascend-a5
-            # The 950 kernel build OOMs the GitHub-hosted runner at full
-            # parallelism ("runner has received a shutdown signal"); cap it.
-            max_jobs: '2'
+            # Reduce compiler memory pressure on hosted runners.
+            max_jobs: '1'
+        exclude:
+          - variant:
+              key: ${{ inputs.a5_only && 'ascend-a2' || 'none' }}
+              dockerfile: Dockerfile
+              suffix: ''
+              max_jobs: ''
+          - variant:
+              key: ${{ inputs.a5_only && 'ascend-a3' || 'none' }}
+              dockerfile: Dockerfile.a3
+              suffix: '-a3'
+              max_jobs: ''
+          - variant:
+              key: ${{ inputs.a5_only && 'ascend-310p' || 'none' }}
+              dockerfile: Dockerfile.310p
+              suffix: '-310p'
+              max_jobs: ''
     uses: ./.github/workflows/_build_push_image.yaml
     with:
       source_repo: vllm-project/vllm-ascend

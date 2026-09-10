@@ -69,6 +69,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
+      max-parallel: ${{ inputs.artifact_key == 'ascend-a5' && 1 || 2 }}
       matrix:
         arch:
           - platform: linux/amd64
