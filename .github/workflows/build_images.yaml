@@ -177,7 +177,7 @@ jobs:
             suffix: '-a5'
             key: ascend-a5
             # Reduce compiler memory pressure on hosted runners.
-            max_jobs: '8'
+            max_jobs: '4'
         exclude:
           - variant:
               key: ${{ inputs.a5_only && 'ascend-a2' || 'none' }}
