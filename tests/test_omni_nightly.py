@@ -13,7 +13,7 @@ from scripts import omni_nightly as nightly
 
 SHA = 'a' * 40
 DIGEST = 'sha256:' + 'b' * 64
-ENV = {'CANDIDATE_TAG': 'nightly', 'OMNI_SHA': SHA,
+ENV = {'RELEASE_TAG': 'nightly-20260910-aaaaaaa', 'CANDIDATE_TAG': 'nightly', 'OMNI_SHA': SHA,
        'SOURCE_AUTH': '/tmp/source-auth', 'DEST_AUTH': '/tmp/dest-auth',
        'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'c' * 40}
 
@@ -94,7 +94,7 @@ class NightlyTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 nightly.publish()
             self.assertEqual(run.call_count, 1)
-            self.assertTrue(run.call_args.args[-1].endswith(':nightly'))
+            self.assertTrue(run.call_args.args[-1].endswith(':nightly-20260910-aaaaaaa'))
 
     def test_destination_mismatch_stops_remaining_publication(self):
         with patch.object(nightly, 'inspect', side_effect=[DIGEST] * 4 + ['sha256:bad']), \
@@ -103,7 +103,7 @@ class NightlyTests(unittest.TestCase):
                 nightly.publish()
             self.assertEqual(run.call_count, 1)
 
-    def test_all_candidates_checked_before_copy_and_only_rolling_published(self):
+    def test_all_candidates_checked_before_history_and_rolling_publication(self):
         events = []
         def inspect(ref, *args, **kwargs):
             events.append(('inspect', ref))
@@ -117,8 +117,51 @@ class NightlyTests(unittest.TestCase):
             nightly.publish()
         self.assertEqual([kind for kind, _ in events[:4]], ['inspect'] * 4)
         copies = [ref for kind, ref in events if kind == 'copy']
-        self.assertEqual(copies, [f'docker://{nightly.DEST}:nightly{suffix}'
+        self.assertEqual(copies, [f'docker://{nightly.DEST}:{tag}{suffix}'
+                                for tag in (ENV['RELEASE_TAG'], 'nightly')
                                 for _, suffix in nightly.VARIANTS])
+
+    def test_cleanup_boundary_and_unrelated_tags(self):
+        from datetime import datetime
+        old = 'nightly-20260828-aaaaaaa-a5'
+        before = {name: DIGEST for name in [old, 'nightly-a5', 'v0.28.0',
+            'nightly-20260829-aaaaaaa', 'nightly-20261301-aaaaaaa',
+            'nightly-20260828-aaaaaaa-amd64']}
+        after = {k: v for k, v in before.items() if k != old}
+        with patch.object(nightly, 'datetime', wraps=datetime) as clock, \
+                patch.object(nightly, 'inventory', side_effect=[before, before, after]), \
+                patch.object(nightly, 'registry_token', return_value='test'), \
+                patch.object(nightly, 'delete_tag') as delete:
+            clock.now.return_value = datetime(2026, 9, 11)
+            nightly.cleanup()
+            delete.assert_called_once_with(old, 'test')
+
+    def test_no_expired_tags_needs_no_credentials(self):
+        with patch.object(nightly, 'inventory', return_value={'nightly': DIGEST}), \
+                patch.object(nightly, 'registry_token') as token:
+            nightly.cleanup()
+            token.assert_not_called()
+
+    def test_cleanup_stops_on_concurrent_change(self):
+        before = {'nightly-20200101-aaaaaaa': DIGEST}
+        with patch.object(nightly, 'inventory', side_effect=[before, {}]), \
+                patch.object(nightly, 'registry_token', return_value='test'), \
+                patch.object(nightly, 'delete_tag') as delete:
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                nightly.cleanup()
+            delete.assert_not_called()
+
+    def test_registry_requires_credentials(self):
+        with self.assertRaisesRegex(ValueError, 'robot credentials'):
+            nightly.registry_token()
+
+    def test_delete_uses_tag_not_digest(self):
+        with patch.object(nightly, 'urlopen') as opened:
+            opened.return_value.__enter__.return_value.status = 202
+            nightly.delete_tag('nightly-20200101-aaaaaaa', 'test')
+            request = opened.call_args.args[0]
+            self.assertTrue(request.full_url.endswith('/manifests/nightly-20200101-aaaaaaa'))
+            self.assertEqual(request.method, 'DELETE')
 
     def test_dockerfile_checkout_sha_and_branch(self):
         dockerfile = Path('docker/vllm-omni/Dockerfile.npu').read_text()

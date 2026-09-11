@@ -19,6 +19,7 @@ jobs:
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
       tag: ${{ steps.resolve.outputs.tag }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
       matrix: ${{ steps.resolve.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
@@ -84,11 +85,17 @@ jobs:
             --username "$ASCEND_USER" --password-stdin quay.io
       - name: Verify all candidates and retag to ascend
         env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
           CANDIDATE_TAG: ${{ needs.prepare.outputs.tag }}
           OMNI_SHA: ${{ needs.prepare.outputs.sha }}
           SOURCE_AUTH: ${{ runner.temp }}/source-auth.json
           DEST_AUTH: ${{ runner.temp }}/dest-auth.json
         run: python3 scripts/omni_nightly.py publish
+      - name: Prune history outside the 14-day window
+        env:
+          ASCEND_QUAY_USERNAME: ${{ vars.ASCEND_QUAY_USERNAME }}
+          ASCEND_QUAY_PASSWORD: ${{ secrets.ASCEND_QUAY_PASSWORD }}
+        run: python3 scripts/omni_nightly.py cleanup
       - name: Remove registry credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/source-auth.json" "$RUNNER_TEMP/dest-auth.json"
@@ -101,6 +108,7 @@ jobs:
       - name: Summarize nightly result
         env:
           OMNI_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
           CANDIDATE_TAG: ${{ needs.prepare.outputs.tag }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
           BUILD_RESULT: ${{ needs.build.result }}

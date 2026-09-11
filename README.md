@@ -217,3 +217,9 @@ with GitHub Pages through `deploy-pages.yaml`.
 - `.github/workflows/retag_image.yaml` — copy validated Ascend images to `atlas-ci`.
 - `.github/workflows/retag_image_to_ascend.yaml` — copy validated Omni images to `ascend`.
 - `docker/vllm-omni/Dockerfile.npu` — Omni image dependencies and source installation.
+
+### Omni nightly 历史保留
+
+每天北京时间 02:00 的 `build_omni_nightly.yaml` 在所有候选验证通过后，先发布 `quay.io/ascend/vllm-omni:nightly-YYYYMMDD-<7位Omni SHA>[-a3|-a5|-310p]`，再更新对应滚动 `nightly[-a3|-a5|-310p]`。A2 无硬件后缀，两种标签对应相同 digest。
+
+全部发布成功后清理日期早于北京时间今天减 13 天的同格式历史标签；保留今天及前 13 天。清理复用 `ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` 换取 Registry Token，按 tag 删除并验证其他标签和 digest 未变，无需 OAuth Secret。连续没有成功发布时，历史标签可能暂时超过 14 天。日期来自 prepare 阶段；同日同 SHA 重跑覆盖同名标签。Pages JSON 仍独立人工维护。
