@@ -6,10 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       omni_ref:
-        description: 'vllm-omni branch or tag to clone into the image'
+        description: 'vllm-omni branch or tag to clone. Ignored when omni_commit is set.'
         type: string
         required: true
         default: 'main'
+      omni_commit:
+        description: 'Optional full 40-character lowercase vllm-omni commit SHA. Takes precedence over omni_ref.'
+        type: string
+        required: false
+        default: ''
       vllm_ascend_image:
         description: 'Base vllm-ascend image repository'
         type: string
@@ -63,5 +68,6 @@ jobs:
         VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image }}
         VLLM_ASCEND_TAG=${{ inputs.vllm_ascend_base_tag }}${{ matrix.variant.suffix }}
         VLLM_OMNI_REF=${{ inputs.omni_ref }}
+        VLLM_OMNI_COMMIT=${{ inputs.omni_commit }}
         PATCH_310P_TRITON_RESIDUE=${{ matrix.variant.patch_310p_triton_residue }}
     secrets: inherit
