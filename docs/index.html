@@ -72,6 +72,9 @@
       th.hw, td.hw { width: 76px; text-align: center; }
       th.hw-muted, td.hw-muted { opacity: .3; background: #f4f6f6; }
       th.action, td.action { width: 70px; text-align: right; }
+      #modelsTable .action { width: 110px; }
+      .model-actions { display: flex; justify-content: flex-end; }
+      .icon-button:disabled { opacity: .3; cursor: default; }
       td { padding: 13px 14px; border-bottom: 1px solid #edf1f2; vertical-align: middle; }
       tr:last-child td { border-bottom: 0; }
       tbody tr:hover { background: #fafcfc; }
@@ -211,7 +214,7 @@
         const map = new Map();
         for (const model of state.config.models) map.set(modelKey(model), { ...model });
         for (const hw of HARDWARE) for (const model of state.config[hw].models) map.set(modelKey(model), { ...model });
-        return [...map.values()].sort((a, b) => `${a.organization}/${a.model_name}`.localeCompare(`${b.organization}/${b.model_name}`));
+        return [...map.values()];
       }
 
       function datasetCatalog() {
@@ -230,7 +233,12 @@
           for (const model of state.config[hw].models) models.set(modelKey(model), { ...model });
           for (const dataset of state.config[hw].datasets) datasets.set(datasetKey(dataset), { ...dataset });
         }
-        state.config.models = [...models.values()];
+        const orderedModels = catalog().filter((model) => models.has(modelKey(model)));
+        state.config.models = orderedModels.map((model) => models.get(modelKey(model)));
+        for (const hw of HARDWARE) {
+          const assigned = new Map(state.config[hw].models.map((model) => [modelKey(model), model]));
+          state.config[hw].models = orderedModels.filter((model) => assigned.has(modelKey(model))).map((model) => assigned.get(modelKey(model)));
+        }
         state.config.datasets = [...datasets.values()];
       }
 
@@ -313,6 +321,28 @@
         row.querySelector(".repo-id").addEventListener("click", () => openResourceDialog(model, "model"));
         row.querySelector(".repo-id").style.cursor = "pointer";
         row.querySelector(".icon-button").addEventListener("click", () => removeModel(model));
+        const models = catalog();
+        const index = models.findIndex((item) => modelKey(item) === key);
+        const controls = document.createElement("div");
+        controls.className = "model-actions";
+        for (const [offset, symbol, label] of [[-1, "↑", "上移模型"], [1, "↓", "下移模型"]]) {
+          const button = document.createElement("button");
+          button.className = "icon-button";
+          button.type = "button";
+          button.textContent = symbol;
+          button.title = `${label}（完整列表顺序）`;
+          button.setAttribute("aria-label", `${label} ${id}`);
+          button.disabled = index + offset < 0 || index + offset >= models.length;
+          button.addEventListener("click", () => {
+            const ordered = catalog();
+            [ordered[index], ordered[index + offset]] = [ordered[index + offset], ordered[index]];
+            state.config.models = ordered;
+            setDirty(); render();
+          });
+          controls.append(button);
+        }
+        controls.append(row.querySelector(".action .icon-button"));
+        row.querySelector(".action").append(controls);
         return row;
       }
 
@@ -409,6 +439,8 @@
           }
           syncTopLevel(); setDirty(); $("modelDialog").close(); render(); showToast(state.editingKey ? "数据集已更新" : "数据集已添加"); return;
         }
+        const modelIndex = state.config.models.findIndex((model) => modelKey(model) === state.editingKey);
+        if (modelIndex >= 0) state.config.models[modelIndex] = { ...resource };
         for (const hw of HARDWARE) {
           state.config[hw].models = state.config[hw].models.filter((m) => modelKey(m) !== state.editingKey && modelKey(m) !== nextKey);
           if (selected.has(hw)) state.config[hw].models.push({ ...resource });
