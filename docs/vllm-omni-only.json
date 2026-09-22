@@ -88,12 +88,12 @@
     {
       "platform": "huggingface",
       "organization": "Qwen",
-      "model_name": "Qwen-Image"
+      "model_name": "Qwen-Image-2.1"
     },
     {
       "platform": "huggingface",
       "organization": "Qwen",
-      "model_name": "Qwen-Image-2.1"
+      "model_name": "Qwen-Image"
     }
   ],
   "datasets": [
@@ -214,6 +214,16 @@
         "platform": "huggingface",
         "organization": "hunyuanvideo-community",
         "model_name": "HunyuanVideo-1.5-Diffusers-480p_i2v"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2.1"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image"
       }
     ],
     "datasets": [
@@ -335,6 +345,16 @@
         "platform": "huggingface",
         "organization": "hunyuanvideo-community",
         "model_name": "HunyuanVideo-1.5-Diffusers-480p_i2v"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2.1"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image"
       }
     ],
     "datasets": [
@@ -456,6 +476,16 @@
         "platform": "huggingface",
         "organization": "hunyuanvideo-community",
         "model_name": "HunyuanVideo-1.5-Diffusers-480p_i2v"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2.1"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image"
       }
     ],
     "datasets": [
