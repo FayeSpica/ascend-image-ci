@@ -77,6 +77,11 @@
     },
     {
       "platform": "huggingface",
+      "organization": "Wan-AI",
+      "model_name": "Wan2.2-T2V-A14B-Diffusers"
+    },
+    {
+      "platform": "huggingface",
       "organization": "mistralai",
       "model_name": "Voxtral-4B-TTS-2603"
     },
@@ -204,6 +209,11 @@
         "platform": "huggingface",
         "organization": "Wan-AI",
         "model_name": "Wan2.2-I2V-A14B-Diffusers"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Wan-AI",
+        "model_name": "Wan2.2-T2V-A14B-Diffusers"
       },
       {
         "platform": "huggingface",
@@ -338,6 +348,11 @@
       },
       {
         "platform": "huggingface",
+        "organization": "Wan-AI",
+        "model_name": "Wan2.2-T2V-A14B-Diffusers"
+      },
+      {
+        "platform": "huggingface",
         "organization": "mistralai",
         "model_name": "Voxtral-4B-TTS-2603"
       },
@@ -466,6 +481,11 @@
         "platform": "huggingface",
         "organization": "Wan-AI",
         "model_name": "Wan2.2-I2V-A14B-Diffusers"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Wan-AI",
+        "model_name": "Wan2.2-T2V-A14B-Diffusers"
       },
       {
         "platform": "huggingface",
