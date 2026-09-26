@@ -1,0 +1,48 @@
+name: Remove dated Omni nightly tags
+on:
+  push:
+    branches: [ops/remove-nightly-20260926-62ebad2]
+permissions:
+  contents: read
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove exact tags and verify remaining tags
+        env:
+          QUAY_USER: ${{ vars.ASCEND_QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.ASCEND_QUAY_PASSWORD }}
+        shell: python
+        run: |
+          import os, json, base64, urllib.request, urllib.error
+          base = 'https://quay.io/api/v1/repository/ascend/vllm-omni'
+          targets = {'nightly-20260926-62ebad2-310p': 'sha256:3e93fd4cd519c295016ffd42cc53312a0cbcfcb8a7368ef79182d42e074e7802', 'nightly-20260926-62ebad2-a5': 'sha256:418eeefcd7fcd8abc21d6d493f8524ca20dc47fb0e7499c9f3d87d2de7f83a64', 'nightly-20260926-62ebad2-a3': 'sha256:7b2325dcee128fab431620a8d9a2c4a7f179192389df6136ec183d824fe3cefc', 'nightly-20260926-62ebad2': 'sha256:46770d993b72111b5acf2a62271ad23649896e6a1adbac4bf1224aa6f779a207'}
+          def inventory():
+              result = {}
+              page = 1
+              while True:
+                  with urllib.request.urlopen(base + '/tag/?limit=100&onlyActiveTags=true&page=' + str(page)) as r:
+                      data = json.load(r)
+                  result.update({t['name']: t['manifest_digest'] for t in data['tags']})
+                  if not data['has_additional']: return result
+                  page += 1
+          before = inventory()
+          for tag, digest in targets.items():
+              assert before.get(tag) == digest, 'Target changed: ' + tag
+          assert os.environ['QUAY_USER'] and os.environ['QUAY_TOKEN'], 'Missing credentials'
+          basic = base64.b64encode((os.environ['QUAY_USER'] + ':' + os.environ['QUAY_TOKEN']).encode()).decode()
+          authreq = urllib.request.Request('https://quay.io/v2/auth?service=quay.io&scope=repository:ascend/vllm-omni:*', headers={'Authorization': 'Basic ' + basic})
+          with urllib.request.urlopen(authreq) as r:
+              token = json.load(r)['token']
+          for tag in targets:
+              req = urllib.request.Request('https://quay.io/v2/ascend/vllm-omni/manifests/' + tag, method='DELETE', headers={'Authorization': 'Bearer ' + token})
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      assert r.status == 202, 'Unexpected delete response'
+                      print('DELETE', tag, r.status)
+              except urllib.error.HTTPError as e:
+                  print('DELETE', tag, 'HTTP', e.code)
+                  raise SystemExit(1)
+          after = inventory()
+          assert after == {k: v for k, v in before.items() if k not in targets}, 'Post-delete inventory mismatch'
+          print('Verified: all four target tags removed; all other tags and digests unchanged.')
