@@ -67,7 +67,7 @@ class NightlyTests(unittest.TestCase):
                 patch.object(nightly, 'output') as output:
             nightly.prepare()
             self.assertEqual([c.args[0] for c in inspect.call_args_list], [
-                'quay.io/atlas-ci/vllm-ascend:v0.29.0' + suffix for _, suffix in nightly.VARIANTS])
+                'quay.io/atlas-ci/vllm-ascend:v0.30.0' + suffix for _, suffix in nightly.VARIANTS])
             outputs = dict(c.args for c in output.call_args_list)
             self.assertEqual(outputs['sha'], SHA)
             self.assertEqual(outputs['tag'], 'nightly')

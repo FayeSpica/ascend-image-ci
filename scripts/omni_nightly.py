@@ -68,7 +68,7 @@ def prepare():
     sha = sha[0]
     tag = 'nightly'
     base_image = os.environ.get('BASE_IMAGE') or 'quay.io/atlas-ci/vllm-ascend'
-    base_tag = os.environ.get('BASE_TAG') or 'v0.29.0'
+    base_tag = os.environ.get('BASE_TAG') or 'v0.30.0'
     # These values enter a newline-separated Docker build-args input.
     if not re.fullmatch(r'[a-z0-9][a-z0-9._/-]*', base_image):
         raise ValueError('Invalid base image repository')
