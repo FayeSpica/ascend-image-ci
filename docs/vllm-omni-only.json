@@ -99,6 +99,11 @@
       "platform": "huggingface",
       "organization": "microsoft",
       "model_name": "wavlm-base-plus"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "Qwen",
+      "model_name": "Qwen2.5-VL-7B-Instruct"
     }
   ],
   "datasets": [
@@ -131,6 +136,11 @@
       "platform": "huggingface",
       "organization": "YiYiXu",
       "dataset_name": "testing-images"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "Hothan",
+      "dataset_name": "Omni-DuplexEval"
     }
   ],
   "a2": {
@@ -234,6 +244,11 @@
         "platform": "huggingface",
         "organization": "microsoft",
         "model_name": "wavlm-base-plus"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen2.5-VL-7B-Instruct"
       }
     ],
     "datasets": [
@@ -266,6 +281,11 @@
         "platform": "huggingface",
         "organization": "YiYiXu",
         "dataset_name": "testing-images"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Hothan",
+        "dataset_name": "Omni-DuplexEval"
       }
     ]
   },
@@ -370,6 +390,11 @@
         "platform": "huggingface",
         "organization": "microsoft",
         "model_name": "wavlm-base-plus"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen2.5-VL-7B-Instruct"
       }
     ],
     "datasets": [
@@ -402,6 +427,11 @@
         "platform": "huggingface",
         "organization": "YiYiXu",
         "dataset_name": "testing-images"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Hothan",
+        "dataset_name": "Omni-DuplexEval"
       }
     ]
   },
@@ -506,6 +536,11 @@
         "platform": "huggingface",
         "organization": "microsoft",
         "model_name": "wavlm-base-plus"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen2.5-VL-7B-Instruct"
       }
     ],
     "datasets": [
@@ -538,6 +573,11 @@
         "platform": "huggingface",
         "organization": "YiYiXu",
         "dataset_name": "testing-images"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Hothan",
+        "dataset_name": "Omni-DuplexEval"
       }
     ]
   },
