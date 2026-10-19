@@ -7,6 +7,21 @@
     },
     {
       "platform": "huggingface",
+      "organization": "lightx2v",
+      "model_name": "Minimax-h3-Turbo"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "LBH-123-AI",
+      "model_name": "Minimax_h3_latent_Upscaler"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "",
+      "model_name": "gpt2"
+    },
+    {
+      "platform": "huggingface",
       "organization": "Qwen",
       "model_name": "Qwen-Image-2.1"
     },
@@ -149,6 +164,21 @@
         "platform": "huggingface",
         "organization": "MiniMaxAI",
         "model_name": "MiniMax-H3"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "lightx2v",
+        "model_name": "Minimax-h3-Turbo"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "LBH-123-AI",
+        "model_name": "Minimax_h3_latent_Upscaler"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "",
+        "model_name": "gpt2"
       },
       {
         "platform": "huggingface",
@@ -298,6 +328,21 @@
       },
       {
         "platform": "huggingface",
+        "organization": "lightx2v",
+        "model_name": "Minimax-h3-Turbo"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "LBH-123-AI",
+        "model_name": "Minimax_h3_latent_Upscaler"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "",
+        "model_name": "gpt2"
+      },
+      {
+        "platform": "huggingface",
         "organization": "Qwen",
         "model_name": "Qwen-Image-2.1"
       },
@@ -441,6 +486,21 @@
         "platform": "huggingface",
         "organization": "MiniMaxAI",
         "model_name": "MiniMax-H3"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "lightx2v",
+        "model_name": "Minimax-h3-Turbo"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "LBH-123-AI",
+        "model_name": "Minimax_h3_latent_Upscaler"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "",
+        "model_name": "gpt2"
       },
       {
         "platform": "huggingface",

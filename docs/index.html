@@ -181,7 +181,7 @@
         <div class="dialog-head"><h2 id="dialogTitle">添加模型</h2><p id="dialogHelp">资源身份由平台、组织和名称共同确定。</p></div>
         <div class="form">
           <div class="field"><label for="platform">平台</label><select id="platform" required><option value="huggingface">huggingface</option><option value="modelscope">modelscope</option></select></div>
-          <div class="field"><label for="organization">组织</label><input id="organization" required placeholder="Qwen" /></div>
+          <div class="field"><label for="organization">组织</label><input id="organization" placeholder="Qwen" /></div>
           <div class="field full"><label for="modelName" id="nameLabel">模型名称</label><input id="modelName" required placeholder="Qwen3-TTS-12Hz-1.7B-Base" /></div>
           <div class="field full"><label for="localDir">本地目录（可选）</label><input id="localDir" placeholder="/root/.cache/custom-path" /></div>
           <div class="field full" id="hardwareField"><label>同步到</label><div class="checks" id="hardwareChecks"></div></div>
@@ -197,7 +197,7 @@
       const $ = (id) => document.getElementById(id);
       const modelKey = (m) => [m.platform, m.organization, m.model_name].join("\u0000");
       const datasetKey = (d) => [d.platform, d.organization, d.dataset_name].join("\u0000");
-      const repoId = (item, type) => `${item.organization}/${type === "model" ? item.model_name : item.dataset_name}`;
+      const repoId = (item, type) => [item.organization, type === "model" ? item.model_name : item.dataset_name].filter(Boolean).join("/");
       const labels = { a2: "A2", a3: "A3", a5: "A5", "310p": "310P" };
 
       function normalizeConfig(raw) {
@@ -418,7 +418,7 @@
 
       function removeModel(model) {
         const key = modelKey(model);
-        if (!confirm(`从所有硬件中删除 ${model.organization}/${model.model_name}？`)) return;
+        if (!confirm(`从所有硬件中删除 ${repoId(model, "model")}？`)) return;
         for (const hw of HARDWARE) state.config[hw].models = state.config[hw].models.filter((m) => modelKey(m) !== key);
         syncTopLevel(); setDirty(); render(); showToast("模型已从所有硬件移除");
       }
