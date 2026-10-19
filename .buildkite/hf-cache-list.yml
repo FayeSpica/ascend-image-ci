@@ -17,6 +17,6 @@ steps:
         cli_dir=$(mktemp -d)
         trap 'rm -rf "$$cli_dir"' EXIT
         python3 -m venv "$$cli_dir/venv"
-        "$$cli_dir/venv/bin/python" -m pip install --disable-pip-version-check 'huggingface_hub==1.0.1'
+        "$$cli_dir/venv/bin/python" -m pip install --disable-pip-version-check 'huggingface_hub==1.0.1' 'typer-slim==0.20.0' 'click==8.1.8'
         "$$cli_dir/venv/bin/hf" cache ls
       fi
