@@ -228,8 +228,9 @@ with GitHub Pages through `deploy-pages.yaml`.
 
 [`.buildkite/hf-cache-list.yml`](.buildkite/hf-cache-list.yml) runs `hf cache ls`
 on the `ascend-a3-offload-test` queue. It reads the cache visible to the agent's
-user, without downloading models or using NPU devices. The agent must already
-have a recent `huggingface_hub` CLI (`hf`) on its `PATH`.
+user, without downloading models or using NPU devices. If `hf` is missing, the step installs `huggingface_hub==1.0.1` in a temporary
+virtual environment, removed at exit. This fallback requires Python 3.9+ with
+`venv`/pip and network access to PyPI. Existing cache files are preserved.
 
 One-time setup in the `vllm-omni-npu-ci-test` Buildkite organization:
 

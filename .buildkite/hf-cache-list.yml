@@ -10,5 +10,13 @@ steps:
       set -eu
       hostname
       whoami
-      command -v hf
-      hf cache ls
+      if command -v hf >/dev/null 2>&1; then
+        hf cache ls
+      else
+        command -v python3
+        cli_dir=$(mktemp -d)
+        trap 'rm -rf "$$cli_dir"' EXIT
+        python3 -m venv "$$cli_dir/venv"
+        "$$cli_dir/venv/bin/python" -m pip install --disable-pip-version-check 'huggingface_hub==1.0.1'
+        "$$cli_dir/venv/bin/hf" cache ls
+      fi
