@@ -223,3 +223,38 @@ with GitHub Pages through `deploy-pages.yaml`.
 每天北京时间 02:00 的 `build_omni_nightly.yaml` 在所有候选验证通过后，先发布 `quay.io/ascend/vllm-omni:nightly-YYYYMMDD-<7位Omni SHA>[-a3|-a5|-310p]`，再更新对应滚动 `nightly[-a3|-a5|-310p]`。A2 无硬件后缀，两种标签对应相同 digest。
 
 全部发布成功后清理日期早于北京时间今天减 13 天的同格式历史标签；保留今天及前 13 天。清理复用 `ASCEND_QUAY_USERNAME` / `ASCEND_QUAY_PASSWORD` 换取 Registry Token，按 tag 删除并验证其他标签和 digest 未变，无需 OAuth Secret。连续没有成功发布时，历史标签可能暂时超过 14 天。日期来自 prepare 阶段；同日同 SHA 重跑覆盖同名标签。Pages JSON 仍独立人工维护。
+
+## Buildkite: list the agent's Hugging Face cache
+
+[`.buildkite/hf-cache-list.yml`](.buildkite/hf-cache-list.yml) runs `hf cache ls`
+on the `ascend-a3-offload-test` queue. It reads the cache visible to the agent's
+user, without downloading models or using NPU devices. The agent must already
+have a recent `huggingface_hub` CLI (`hf`) on its `PATH`.
+
+One-time setup in the `vllm-omni-npu-ci-test` Buildkite organization:
+
+1. Create a pipeline named `HF cache list`, using this GitHub repository and
+   the Default cluster containing the queue.
+2. In the pipeline's YAML Steps editor, use this bootstrap step:
+
+   ```yaml
+   steps:
+     - label: ":pipeline: Upload cache check"
+       agents:
+         queue: ascend-a3-offload-test
+       command: buildkite-agent pipeline upload .buildkite/hf-cache-list.yml
+   ```
+
+3. Ensure an agent is connected to `ascend-a3-offload-test`, and that it can
+   check out this repository. The bootstrap step also needs that queue.
+4. Click **New Build**, select branch `main`, set commit to `HEAD`, and create
+   the build. Open **HF cache list** to inspect the output and exit status.
+
+For later runs, repeat **New Build** on this pipeline. GitHub Actions **Run
+workflow** does not trigger this Buildkite pipeline. If only manual runs are
+wanted, leave automatic GitHub push/PR build triggers disabled.
+
+An empty list with exit status 0 means the command ran successfully but found
+no cache for that user. If the shared cache is elsewhere, configure
+`HF_HUB_CACHE` on the agent to its actual Hub cache directory. A cache inside
+another container is not visible unless mounted into the agent environment.

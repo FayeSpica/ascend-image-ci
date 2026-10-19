@@ -1,0 +1,14 @@
+steps:
+  - label: ":hugging_face: HF cache list"
+    key: hf-cache-list
+    agents:
+      queue: ascend-a3-offload-test
+    timeout_in_minutes: 5
+    env:
+      HF_HUB_OFFLINE: "1"
+    command: |
+      set -eu
+      hostname
+      whoami
+      command -v hf
+      hf cache ls
