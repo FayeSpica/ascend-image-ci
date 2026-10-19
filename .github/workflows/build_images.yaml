@@ -31,7 +31,7 @@ on:
       vllm_tag:
         description: 'vLLM tag/branch (VLLM_TAG build-arg, git clone -b). Ignored when vllm_commit is set. A pre-tag release branch like releases/v0.24.0 is allowed; the published image tag uses the branch basename (v0.24.0).'
         type: string
-        default: 'v0.23.0'
+        default: 'v0.32.0'
       vllm_commit:
         description: 'vLLM commit SHA to build (VLLM_COMMIT build-arg, git fetch <sha>). Use this for a bare commit that git clone -b cannot check out. When set, it wins over vllm_tag and the tag fragment uses the first 8 chars. Empty = build from vllm_tag.'
         type: string
