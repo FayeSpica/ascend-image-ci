@@ -28,6 +28,7 @@ RUN apt-get update && \
         libgl1 \
         libglib2.0-0 \
         libgomp1 \
+        libjemalloc2 \
         libsm6 \
         libxext6 \
         libxrender1 \
@@ -35,6 +36,9 @@ RUN apt-get update && \
         espeak-ng && \
     rm -rf /var/cache/apt/* && \
     rm -rf /var/lib/apt/lists/*
+
+# Avoid glibc heap corruption at Python shutdown with the NPU runtime.
+ENV LD_PRELOAD=libjemalloc.so.2
 
 RUN set -euo pipefail; \
     if [[ -n "${VLLM_OMNI_COMMIT}" ]]; then \
