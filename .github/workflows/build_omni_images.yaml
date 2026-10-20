@@ -5,6 +5,11 @@ name: Build Omni images
 on:
   workflow_dispatch:
     inputs:
+      omni_repo:
+        description: 'vllm-omni Git repository URL'
+        type: string
+        required: true
+        default: 'https://github.com/vllm-project/vllm-omni.git'
       omni_ref:
         description: 'vllm-omni branch or tag to clone. Ignored when omni_commit is set.'
         type: string
@@ -67,6 +72,7 @@ jobs:
       build_args: |
         VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image }}
         VLLM_ASCEND_TAG=${{ inputs.vllm_ascend_base_tag }}${{ matrix.variant.suffix }}
+        VLLM_OMNI_REPO=${{ inputs.omni_repo }}
         VLLM_OMNI_REF=${{ inputs.omni_ref }}
         VLLM_OMNI_COMMIT=${{ inputs.omni_commit }}
         PATCH_310P_TRITON_RESIDUE=${{ matrix.variant.patch_310p_triton_residue }}
