@@ -1,0 +1,443 @@
+# Source matrix: Omni da572cddb .buildkite/npu/test-npu-ready.yml
+# Image source: Ascend 1cebee70 + Omni a3937ed0 (includes MoE compatibility patch).
+steps:
+- label: Platforms Test
+  key: a3-ready-1
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_TARGET_DEVICE: npu
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+  timeout_in_minutes: 60
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    pytest -s -v tests/platforms/npu/test_minicpmo_code2wav_npugraph.py tests/platforms/npu/test_contiguous_kv_cache.py
+    tests/platforms/npu/test_npu_device_copy.py -m ''core_model and npu and A3 and omni'' --run-level ''core_model''
+
+    '
+- label: Diffusion NPU layer tests - A3
+  key: a3-ready-2
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_TARGET_DEVICE: npu
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+  timeout_in_minutes: 60
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    pytest -s -v tests/diffusion/layers/test_activation.py tests/diffusion/layers/test_fused_qk_norm_rope_npu.py
+    tests/diffusion/models/minimax_h3/test_minimax_h3_qwen3vl_swiglu.py tests/diffusion/models/minimax_h3/test_minimax_h3_modulation.py
+    -m ''core_model and npu and A3'' --run-level ''core_model''
+
+    '
+- label: Omni · MiniCPM-o 4.5 Test
+  key: a3-ready-3
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  timeout_in_minutes: 60
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    pytest -s -v tests/e2e/offline_inference/test_minicpmo_4_5.py tests/e2e/online_serving/test_minicpmo_4_5.py
+    -m ''core_model and npu and A3 and omni'' --run-level ''core_model''
+
+    '
+- label: Omni · MiniCPM-o 4.5 Duplex Test
+  key: a3-ready-4
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  timeout_in_minutes: 60
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    pytest -s -v tests/e2e/online_serving/test_minicpmo_4_5_duplex.py -m ''core_model and npu and A3 and omni''
+    --run-level ''core_model''
+
+    '
+- label: Omni · MiniCPM-o 4.5 Perf Test
+  timeout_in_minutes: 60
+  key: a3-ready-5
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    export BENCHMARK_DIR=tests/dfx/perf/results
+
+    pytest -s -v tests/dfx/perf/scripts/run_benchmark.py --test-config-file tests/dfx/perf/tests/test_minicpmo_4_5_ready.json
+    -m ''core_model and npu and A3 and omni''
+
+    '
+- label: Omni · Qwen3-Omni Test
+  timeout_in_minutes: 60
+  key: a3-ready-6
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-4
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    pytest -s -v tests/e2e/online_serving/test_qwen3_omni.py -m ''core_model and npu and A3 and omni'' --run-level
+    ''core_model''
+
+    '
+- label: ':sound: TTS · Qwen3-TTS CustomVoice Test'
+  key: a3-ready-7
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  timeout_in_minutes: 60
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    pytest -s -v tests/e2e/online_serving/test_qwen3_tts_customvoice.py -m ''core_model and npu'' --run-level ''core_model''
+
+    '
+- label: Diffusion · HunyuanVideo-1.5 Test
+  timeout_in_minutes: 60
+  key: a3-ready-8
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  command: "export PS1=x\nsource /root/.bashrc\nset -euo pipefail\nexport VLLM_TARGET_DEVICE=npu\nexport VLLM_WORKER_MULTIPROC_METHOD=spawn\n\
+    cd /vllm-workspace/vllm-omni\ntest \"$$(git rev-parse HEAD)\" = a3937ed027ffaa590029174b3571eebd10ce56e6\ngit\
+    \ diff --exit-code\npython3 -c \"import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)\"\nnpu-smi info\n\
+    timeout 40m bash -c \"\n  export VLLM_IMAGE_FETCH_TIMEOUT=60\n  pytest -s -v tests/e2e/online_serving/test_hunyuan_video_15_expansion.py\
+    \ -m 'core_model and diffusion and npu' --run-level 'core_model'\n  \"\n\n"
+- label: Diffusion · Qwen Image Test
+  timeout_in_minutes: 60
+  key: a3-ready-9
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    timeout 40m bash -c "
+
+    export VLLM_IMAGE_FETCH_TIMEOUT=60
+
+    pytest -s -v tests/e2e/online_serving/test_qwen_image.py -m ''core_model and npu'' --run-level ''core_model''
+
+    "
+
+
+    '
+- label: Diffusion · Wan22 Test
+  timeout_in_minutes: 60
+  key: a3-ready-10
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-2
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    timeout 40m bash -c "
+
+    export VLLM_IMAGE_FETCH_TIMEOUT=60
+
+    pytest -s -v tests/e2e/online_serving/test_wan22_t2v.py -m ''core_model and npu'' --run-level ''core_model''
+
+    "
+
+
+    '
+- label: Diffusion · Hunyuan Image Test
+  timeout_in_minutes: 60
+  key: a3-ready-11
+  agents:
+    queue: ascend-a3-offload-test
+    resource_class: npu-4
+  image: quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3
+  plugins:
+  - kubernetes:
+      podSpecPatch:
+        imagePullSecrets:
+        - name: swr-secret
+  env:
+    VLLM_WORKER_MULTIPROC_METHOD: spawn
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+    VLLM_TARGET_DEVICE: npu
+  command: 'export PS1=x
+
+    source /root/.bashrc
+
+    set -euo pipefail
+
+    export VLLM_TARGET_DEVICE=npu
+
+    export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+    cd /vllm-workspace/vllm-omni
+
+    test "$$(git rev-parse HEAD)" = a3937ed027ffaa590029174b3571eebd10ce56e6
+
+    git diff --exit-code
+
+    python3 -c "import tbe, torch_npu, vllm_omni; print(vllm_omni.__file__)"
+
+    npu-smi info
+
+    timeout 40m bash -c "
+
+    export VLLM_IMAGE_FETCH_TIMEOUT=60
+
+    pytest -s -v tests/e2e/online_serving/test_hunyuan_image.py -m ''core_model and diffusion and npu'' --run-level
+    ''core_model''
+
+    "
+
+
+    '

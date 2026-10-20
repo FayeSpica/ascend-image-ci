@@ -259,3 +259,44 @@ An empty list with exit status 0 means the command ran successfully but found
 no cache for that user. If the shared cache is elsewhere, configure
 `HF_HUB_CACHE` on the agent to its actual Hub cache directory. A cache inside
 another container is not visible unless mounted into the agent environment.
+
+### Omni Ready/Merge: all A3 jobs
+
+[`.buildkite/omni-ready-a3.yml`](.buildkite/omni-ready-a3.yml) selects all 11
+A3 jobs from Omni `da572cddb`'s `.buildkite/npu/test-npu-ready.yml`, including
+MiniCPM performance. NPU Ready/Merge uses this shared test definition; there is
+no separate `test-npu-merge.yml` at that revision. Commands, pytest markers,
+run levels, task environment and timeouts are preserved. The image is pinned to
+`quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3`
+(Ascend `1cebee70`, Omni `a3937ed0`, including the MoE compatibility fix).
+This tests the image's source, not the current upstream main checkout.
+
+Create a Buildkite pipeline using `https://github.com/FayeSpica/ascend-image-ci.git`
+and put this in its YAML Steps editor:
+
+```yaml
+steps:
+  - label: ":pipeline: Upload Omni A3 Ready/Merge"
+    agents:
+      queue: ascend-a3-offload-test
+    command: buildkite-agent pipeline upload .buildkite/omni-ready-a3.yml
+```
+
+Run **New Build** on the branch containing the YAML, with commit **HEAD**.
+GitHub Actions does not launch this Buildkite pipeline. Keep automatic push/PR
+triggers disabled if only manual runs are intended.
+
+The queue must support the same Kubernetes `image` handling and `resource_class`
+selection as upstream NPU CI. Nine jobs request `npu-2`; Qwen3-Omni and
+HunyuanImage request `npu-4`. Retain the queue's device allocation and shared HF
+cache mounts; do not hard-code Ascend02 device IDs. Configure `HF_TOKEN` through
+the pipeline's existing secret mechanism when required. The `swr-secret` plugin
+patch is copied from upstream NPU CI and requires that secret to exist in the
+job namespace. No test step installs dependencies or changes the image source.
+A queue that only provides a bare shell agent needs a container-launch adapter
+before this configuration can execute as intended.
+
+To validate another image, update every job's `image` and expected Omni SHA
+check together. Compare the selected upstream test definition again when moving
+the source revision. These jobs run independently; ordinary test failures are
+not automatically retried or marked soft-fail.
