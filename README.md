@@ -262,41 +262,49 @@ another container is not visible unless mounted into the agent environment.
 
 ### Omni Ready/Merge: all A3 jobs
 
-[`.buildkite/omni-ready-a3.yml`](.buildkite/omni-ready-a3.yml) selects all 11
-A3 jobs from Omni `da572cddb`'s `.buildkite/npu/test-npu-ready.yml`, including
-MiniCPM performance. NPU Ready/Merge uses this shared test definition; there is
-no separate `test-npu-merge.yml` at that revision. Commands, pytest markers,
-run levels, task environment and timeouts are preserved. The image is pinned to
-`quay.nju.edu.cn/fayeomni/vllm-omni:v0.32.0-1cebee70-a3937ed0-a3`
-(Ascend `1cebee70`, Omni `a3937ed0`, including the MoE compatibility fix).
-This tests the image's source, not the current upstream main checkout.
+[`.buildkite/omni-ready-a3.yml`](.buildkite/omni-ready-a3.yml) builds an A3 test
+image from the selected Omni commit's own `docker/Dockerfile.npu.ci`, then runs
+all 11 A3 Ready/Merge jobs (including MiniCPM performance). The matrix is copied
+from Omni `da572cddb`'s `.buildkite/npu/test-npu-ready.yml`; no separate NPU
+merge YAML exists at that revision.
 
-Create a Buildkite pipeline using `https://github.com/FayeSpica/ascend-image-ci.git`
-and put this in its YAML Steps editor:
+Defaults select Omni `a3937ed0` from the FayeSpica fork (including the MoE
+compatibility fix) and Ascend base `v0.32.0-1cebee70-a3`. The build step explicitly
+passes the base repository, version and A3 suffix. Its output tag includes the
+ascend-image-ci commit and build number. Every test depends on `image-build-a3`
+and checks the expected Omni SHA before running; it does not install dependencies
+or modify source. Change `OMNI_REPO`, `OMNI_COMMIT`, both base-image arguments,
+and the tests' SHA checks together when selecting another source stack.
+
+All 12 jobs share `concurrency_group: ascend-image-ci/omni-ready-a3` with
+`concurrency: 4`. Each job requests at most 4 cards, so their combined allocation
+is at most 16 cards across builds using this group. Two-card tasks consume one
+slot too: this is a conservative job-count cap, not weighted card scheduling.
+Nine tests request `npu-2`, two request `npu-4`, and the build requests `npu-1`.
+Previously uploaded pipelines and unrelated jobs are outside this cap.
+
+Create or update a Buildkite pipeline for
+`https://github.com/FayeSpica/ascend-image-ci.git` with this bootstrap:
 
 ```yaml
 steps:
-  - label: ":pipeline: Upload Omni A3 Ready/Merge"
+  - label: "Upload Omni A3 Ready/Merge"
     agents:
       queue: ascend-a3-offload-test
     command: buildkite-agent pipeline upload .buildkite/omni-ready-a3.yml
 ```
 
-Run **New Build** on the branch containing the YAML, with commit **HEAD**.
-GitHub Actions does not launch this Buildkite pipeline. Keep automatic push/PR
-triggers disabled if only manual runs are intended.
+Use **New Build**, branch containing this configuration, commit **HEAD**.
+GitHub Actions does not trigger this Buildkite pipeline. Existing builds retain
+their uploaded steps; a new build is required to use this configuration.
 
-The queue must support the same Kubernetes `image` handling and `resource_class`
-selection as upstream NPU CI. Nine jobs request `npu-2`; Qwen3-Omni and
-HunyuanImage request `npu-4`. Retain the queue's device allocation and shared HF
-cache mounts; do not hard-code Ascend02 device IDs. Configure `HF_TOKEN` through
-the pipeline's existing secret mechanism when required. The `swr-secret` plugin
-patch is copied from upstream NPU CI and requires that secret to exist in the
-job namespace. No test step installs dependencies or changes the image source.
-A queue that only provides a bare shell agent needs a container-launch adapter
-before this configuration can execute as intended.
-
-To validate another image, update every job's `image` and expected Omni SHA
-check together. Compare the selected upstream test definition again when moving
-the source revision. These jobs run independently; ordinary test failures are
-not automatically retried or marked soft-fail.
+The queue must support upstream Kubernetes image and resource-class handling,
+BuildKit service access, shared model-cache mounts, and the Dockerfile's internal
+apt/PyPI cache endpoints. The build copies upstream Vault injection configuration
+for the BuildKit TLS certificates and registry login, without disabling Vault TLS
+verification. The configured Vault role, secret path and `token-vol` audience must
+already be available to this queue; this file does not provision access. Tests
+retain the upstream `swr-secret` image-pull patch. Configure any required HF token
+through the existing secret mechanism, and let the queue allocate NPU devices.
+Do not hard-code Ascend02 device IDs. Test failures are neither soft-failed nor
+automatically retried.
