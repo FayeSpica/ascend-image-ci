@@ -273,14 +273,17 @@ compatibility fix) and Ascend base `v0.32.0-1cebee70-a3`. The build step explici
 passes the base repository, version and A3 suffix. Its output tag includes the
 ascend-image-ci commit and build number. Every test depends on `image-build-a3`
 and checks the expected Omni SHA before running; it does not install dependencies
-or modify source. Change `OMNI_REPO`, `OMNI_COMMIT`, both base-image arguments,
-and the tests' SHA checks together when selecting another source stack.
+or modify source. Select another stack by changing the top-level `env` values: `OMNI_REPO`,
+`OMNI_COMMIT`, `VLLM_ASCEND_IMAGE`, and `VLLM_ASCEND_VERSION`. Build and test
+steps share these values; no per-test SHA edits are needed. Tests discover the
+source root from the installed `vllm_omni` package. Set `OMNI_SOURCE_DIR` only
+when an explicit source-root override is needed; SHA validation remains enabled.
 
 All 12 jobs share `concurrency_group: ascend-image-ci/omni-ready-a3` with
 `concurrency: 4`. Each job requests at most 4 cards, so their combined allocation
 is at most 16 cards across builds using this group. Two-card tasks consume one
 slot too: this is a conservative job-count cap, not weighted card scheduling.
-Nine tests request `npu-2`, two request `npu-4`, and the build requests `npu-1`.
+Nine tests request `npu-2`, two request `npu-4`, and the build requests `npu-2`.
 Previously uploaded pipelines and unrelated jobs are outside this cap.
 
 Create or update a Buildkite pipeline for
