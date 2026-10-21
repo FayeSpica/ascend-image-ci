@@ -149,8 +149,7 @@ in UTC), with a manual trigger for reruns. GitHub schedules can be delayed.
 Each run resolves the latest `vllm-project/vllm-omni` main commit once, then
 builds A2/A3/A5/310P for both amd64 and arm64 using that exact SHA.
 
-The default base is `quay.io/atlas-ci/vllm-ascend:v0.30.0`, with `-a3`, `-a5`,
-and `-310p` suffixes. Optional Actions variables `OMNI_NIGHTLY_BASE_IMAGE` and
+The default base repository and tag come from `VLLM_ASCEND_IMAGE` and `VLLM_ASCEND_TAG` in `docker/vllm-omni/Dockerfile.npu`, with `-a3`, `-a5`, and `-310p` suffixes. Optional Actions variables `OMNI_NIGHTLY_BASE_IMAGE` and
 `OMNI_NIGHTLY_BASE_TAG` override the repository and unsuffixed tag. Each base
 manifest must include both architectures and is pinned by digest for the run.
 The Dockerfile also accepts `VLLM_ASCEND_BASE` as a complete image reference

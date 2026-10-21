@@ -8,6 +8,7 @@ import time
 import hashlib
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -67,8 +68,11 @@ def prepare():
         raise ValueError('Cannot resolve upstream main to one full commit SHA')
     sha = sha[0]
     tag = 'nightly'
-    base_image = os.environ.get('BASE_IMAGE') or 'quay.io/atlas-ci/vllm-ascend'
-    base_tag = os.environ.get('BASE_TAG') or 'v0.30.0'
+    dockerfile = Path(__file__).resolve().parents[1] / 'docker/vllm-omni/Dockerfile.npu'
+    defaults = dict(re.findall(r'^ARG (VLLM_ASCEND_IMAGE|VLLM_ASCEND_TAG)=(.+)$',
+                               dockerfile.read_text(), re.MULTILINE))
+    base_image = os.environ.get('BASE_IMAGE') or defaults['VLLM_ASCEND_IMAGE']
+    base_tag = os.environ.get('BASE_TAG') or defaults['VLLM_ASCEND_TAG']
     # These values enter a newline-separated Docker build-args input.
     if not re.fullmatch(r'[a-z0-9][a-z0-9._/-]*', base_image):
         raise ValueError('Invalid base image repository')
