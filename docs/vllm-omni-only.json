@@ -33,6 +33,11 @@
     {
       "platform": "huggingface",
       "organization": "Qwen",
+      "model_name": "Qwen-Image-2512"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "Qwen",
       "model_name": "Qwen-Image-Edit"
     },
     {
@@ -189,6 +194,11 @@
         "platform": "huggingface",
         "organization": "Qwen",
         "model_name": "Qwen-Image"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2512"
       },
       {
         "platform": "huggingface",
@@ -354,6 +364,11 @@
       {
         "platform": "huggingface",
         "organization": "Qwen",
+        "model_name": "Qwen-Image-2512"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
         "model_name": "Qwen-Image-Edit"
       },
       {
@@ -511,6 +526,11 @@
         "platform": "huggingface",
         "organization": "Qwen",
         "model_name": "Qwen-Image"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2512"
       },
       {
         "platform": "huggingface",
