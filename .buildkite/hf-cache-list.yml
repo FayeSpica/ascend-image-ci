@@ -20,3 +20,12 @@ steps:
         "$$cli_dir/venv/bin/python" -m pip install --disable-pip-version-check 'huggingface_hub==1.0.1' 'typer-slim==0.20.0' 'click==8.1.8'
         "$$cli_dir/venv/bin/hf" cache ls
       fi
+
+  - label: "H3 cache revision vs latest"
+    key: h3-cache-revision
+    agents:
+      queue: ascend-a3-offload-test
+    timeout_in_minutes: 5
+    command: python3 scripts/check_h3_cache.py
+    artifact_paths:
+      - h3-cache-revision-report.json
