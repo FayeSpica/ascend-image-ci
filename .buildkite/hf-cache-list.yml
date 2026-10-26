@@ -12,6 +12,7 @@ steps:
       whoami
       if command -v hf >/dev/null 2>&1; then
         hf cache ls
+        cache_python=python3
       else
         command -v python3
         cli_dir=$(mktemp -d)
@@ -19,6 +20,10 @@ steps:
         python3 -m venv "$$cli_dir/venv"
         "$$cli_dir/venv/bin/python" -m pip install --disable-pip-version-check 'huggingface_hub==1.0.1' 'typer-slim==0.20.0' 'click==8.1.8'
         "$$cli_dir/venv/bin/hf" cache ls
+        cache_python="$$cli_dir/venv/bin/python"
+      fi
+      if [ "$${HF_CACHE_RESOLVE_TEST:-0}" = "1" ]; then
+        "$$cache_python" -c 'from pathlib import Path; from huggingface_hub import hf_hub_download; p = Path(hf_hub_download(repo_id="YiYiXu/testing-images", filename="wan_i2v_input.JPG", repo_type="dataset", local_files_only=True)); print("RESOLVED_PATH=" + str(p)); print("SIZE=" + str(p.stat().st_size)); f = p.open("rb"); magic = f.read(3); f.close(); assert magic == bytes.fromhex("ffd8ff"), magic; print("PASS: offline dataset resolution and JPEG header")'
       fi
 
   - label: "H3 cache metadata (offline)"
