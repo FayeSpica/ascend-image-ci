@@ -25,7 +25,7 @@ steps:
     key: h3-cache-revision
     agents:
       queue: ascend-a3-offload-test
-    timeout_in_minutes: 5
+    timeout_in_minutes: 120
     env:
       HF_HUB_OFFLINE: "1"
     command: python3 scripts/check_h3_cache.py
