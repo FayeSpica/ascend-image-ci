@@ -3,6 +3,12 @@ steps:
     key: hf-cache-list
     agents:
       queue: ascend-a3-offload-test
+    image: swr.cn-southwest-2.myhuaweicloud.com/modelfoundry/vllm-omni-ci-npu:eef816b13c0d350deff8471472c8f9069f779ee4-a3
+    plugins:
+      - kubernetes:
+          podSpecPatch:
+            imagePullSecrets:
+              - name: swr-secret
     timeout_in_minutes: 5
     env:
       HF_HUB_OFFLINE: "1"
@@ -30,6 +36,12 @@ steps:
     key: h3-cache-revision
     agents:
       queue: ascend-a3-offload-test
+    image: swr.cn-southwest-2.myhuaweicloud.com/modelfoundry/vllm-omni-ci-npu:eef816b13c0d350deff8471472c8f9069f779ee4-a3
+    plugins:
+      - kubernetes:
+          podSpecPatch:
+            imagePullSecrets:
+              - name: swr-secret
     timeout_in_minutes: 120
     env:
       HF_HUB_OFFLINE: "1"
