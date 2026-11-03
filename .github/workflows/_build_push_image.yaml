@@ -114,6 +114,34 @@ jobs:
             echo "Applied ${url}"
           done
 
+      - name: Normalize and preflight Ascend FLA wheel URL
+        if: ${{ inputs.source_repo == 'vllm-project/vllm-ascend' }}
+        env:
+          DOCKERFILE: ${{ inputs.dockerfile }}
+        run: |
+          python3 - <<'PYCODE'
+          import os
+          import platform
+          import re
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          path = Path(os.environ["DOCKERFILE"])
+          text = path.read_text()
+          prefix = "https://mirrors.huaweicloud.com/ascend/repos/pypi/"
+          for variant in ("a2", "a3", "a5"):
+              text = text.replace(prefix + f"flash_linear_attention_npu_{variant}/",
+                                  prefix + f"flash-linear-attention-npu-{variant}/")
+          path.write_text(text)
+          if "FLA_WHL=" in text:
+              version = re.search(r'ARG FLA_VERSION="([^"]+)"', text).group(1)
+              wheel = re.search(r'FLA_WHL="([^"]+_' + re.escape(platform.machine()) + r'\.whl)"', text).group(1)
+              base = re.search(r'URL="(https://mirrors\.huaweicloud\.com/ascend/repos/pypi/flash-linear-attention-npu-a[235]/)', text).group(1)
+              url = base + wheel.replace("${FLA_VERSION}", version)
+              with urlopen(Request(url, method="HEAD"), timeout=30) as response:
+                  print(f"FLA wheel preflight: {response.status} {url}", flush=True)
+          PYCODE
+
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
