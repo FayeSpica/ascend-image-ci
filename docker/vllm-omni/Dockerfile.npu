@@ -48,10 +48,17 @@ RUN set -euo pipefail; \
         git -C "${APP_DIR}" fetch --depth 1 origin "${VLLM_OMNI_COMMIT}"; \
         git -C "${APP_DIR}" checkout --detach FETCH_HEAD; \
         test "$(git -C "${APP_DIR}" rev-parse HEAD)" = "${VLLM_OMNI_COMMIT}"; \
+        tag_ref="refs/tags/${VLLM_OMNI_REF}"; \
+        tag="$(git -C "${APP_DIR}" ls-remote --tags origin "${tag_ref}")"; \
+        if [[ -n "${tag}" ]]; then \
+            git -C "${APP_DIR}" fetch --depth 1 origin "${tag_ref}:${tag_ref}"; \
+        fi; \
     else \
         git clone --depth 1 --branch "${VLLM_OMNI_REF}" "${VLLM_OMNI_REPO}" "${APP_DIR}"; \
     fi
 WORKDIR ${APP_DIR}
+
+ENV VLLM_OMNI_TARGET_DEVICE=npu
 
 RUN source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
     source /usr/local/Ascend/nnal/atb/set_env.sh && \
