@@ -2,6 +2,11 @@
   "models": [
     {
       "platform": "huggingface",
+      "organization": "Qwen",
+      "model_name": "Qwen-Image-2.1-Turbo"
+    },
+    {
+      "platform": "huggingface",
       "organization": "OpenMOSS-Team",
       "model_name": "MOSS-TTS-Local-Transformer-v1.5"
     },
@@ -190,6 +195,11 @@
   ],
   "a2": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2.1-Turbo"
+      },
       {
         "platform": "huggingface",
         "organization": "OpenMOSS-Team",
@@ -383,6 +393,11 @@
     "models": [
       {
         "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2.1-Turbo"
+      },
+      {
+        "platform": "huggingface",
         "organization": "OpenMOSS-Team",
         "model_name": "MOSS-TTS-Local-Transformer-v1.5"
       },
@@ -572,6 +587,11 @@
   },
   "a5": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "Qwen",
+        "model_name": "Qwen-Image-2.1-Turbo"
+      },
       {
         "platform": "huggingface",
         "organization": "OpenMOSS-Team",
