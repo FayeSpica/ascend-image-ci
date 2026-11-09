@@ -2,6 +2,11 @@
   "models": [
     {
       "platform": "huggingface",
+      "organization": "openbmb",
+      "model_name": "VoxCPM2"
+    },
+    {
+      "platform": "huggingface",
       "organization": "Qwen",
       "model_name": "Qwen-Image-2.1-Turbo"
     },
@@ -195,6 +200,11 @@
   ],
   "a2": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "openbmb",
+        "model_name": "VoxCPM2"
+      },
       {
         "platform": "huggingface",
         "organization": "Qwen",
@@ -393,6 +403,11 @@
     "models": [
       {
         "platform": "huggingface",
+        "organization": "openbmb",
+        "model_name": "VoxCPM2"
+      },
+      {
+        "platform": "huggingface",
         "organization": "Qwen",
         "model_name": "Qwen-Image-2.1-Turbo"
       },
@@ -587,6 +602,11 @@
   },
   "a5": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "openbmb",
+        "model_name": "VoxCPM2"
+      },
       {
         "platform": "huggingface",
         "organization": "Qwen",
