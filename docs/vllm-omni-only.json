@@ -2,6 +2,26 @@
   "models": [
     {
       "platform": "huggingface",
+      "organization": "OpenMOSS-Team",
+      "model_name": "MOSS-TTS-Local-Transformer-v1.5"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "OpenMOSS-Team",
+      "model_name": "MOSS-Audio-Tokenizer-v2"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "OpenMOSS-Team",
+      "model_name": "MOSS-Image-SFT"
+    },
+    {
+      "platform": "huggingface",
+      "organization": "OpenMOSS-Team",
+      "model_name": "MOSS-Image-Base"
+    },
+    {
+      "platform": "huggingface",
       "organization": "MiniMaxAI",
       "model_name": "MiniMax-H3"
     },
@@ -170,6 +190,26 @@
   ],
   "a2": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-TTS-Local-Transformer-v1.5"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Audio-Tokenizer-v2"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Image-SFT"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Image-Base"
+      },
       {
         "platform": "huggingface",
         "organization": "MiniMaxAI",
@@ -343,6 +383,26 @@
     "models": [
       {
         "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-TTS-Local-Transformer-v1.5"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Audio-Tokenizer-v2"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Image-SFT"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Image-Base"
+      },
+      {
+        "platform": "huggingface",
         "organization": "MiniMaxAI",
         "model_name": "MiniMax-H3"
       },
@@ -512,6 +572,26 @@
   },
   "a5": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-TTS-Local-Transformer-v1.5"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Audio-Tokenizer-v2"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Image-SFT"
+      },
+      {
+        "platform": "huggingface",
+        "organization": "OpenMOSS-Team",
+        "model_name": "MOSS-Image-Base"
+      },
       {
         "platform": "huggingface",
         "organization": "MiniMaxAI",
