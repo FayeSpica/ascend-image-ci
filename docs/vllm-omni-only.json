@@ -2,6 +2,11 @@
   "models": [
     {
       "platform": "huggingface",
+      "organization": "robbyant",
+      "model_name": "lingbot-world-v2-14b-causal-fast-diffusers"
+    },
+    {
+      "platform": "huggingface",
       "organization": "openbmb",
       "model_name": "VoxCPM2"
     },
@@ -200,6 +205,11 @@
   ],
   "a2": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "robbyant",
+        "model_name": "lingbot-world-v2-14b-causal-fast-diffusers"
+      },
       {
         "platform": "huggingface",
         "organization": "openbmb",
@@ -403,6 +413,11 @@
     "models": [
       {
         "platform": "huggingface",
+        "organization": "robbyant",
+        "model_name": "lingbot-world-v2-14b-causal-fast-diffusers"
+      },
+      {
+        "platform": "huggingface",
         "organization": "openbmb",
         "model_name": "VoxCPM2"
       },
@@ -602,6 +617,11 @@
   },
   "a5": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "robbyant",
+        "model_name": "lingbot-world-v2-14b-causal-fast-diffusers"
+      },
       {
         "platform": "huggingface",
         "organization": "openbmb",

@@ -82,6 +82,11 @@
       tbody tr:hover { background: #fafcfc; }
       .model-name { font-weight: 750; word-break: break-word; }
       .model-meta { margin-top: 4px; color: var(--muted); font: 500 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .model-identity { display: flex; align-items: center; gap: 9px; }
+      .publisher-avatar { position: relative; display: grid; place-items: center; flex: 0 0 28px; height: 28px; overflow: hidden; border-radius: 6px; background: #edf2f3; color: var(--muted); font-size: 10px; font-weight: 750; }
+      .publisher-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: white; }
+      .model-meta a { color: inherit; text-underline-offset: 2px; }
+      .model-meta a:hover { color: var(--a3); }
       .repo-id { color: var(--ink); font: 700 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
       .command { display: inline-flex; align-items: center; max-width: 100%; gap: 7px; padding: 6px 7px 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: #f7f9f9; }
       .command code { overflow: hidden; color: #425159; font: 500 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
@@ -329,12 +334,65 @@
         setDirty(); render();
       }
 
+      function sourceLink(cell, id, type) {
+        const link = document.createElement("a");
+        const path = id.split("/").map(encodeURIComponent).join("/");
+        link.href = `https://huggingface.co/${type === "dataset" ? "datasets/" : ""}${path}`;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "huggingface ↗";
+        link.setAttribute("aria-label", `在 Hugging Face 打开 ${id}（新标签页）`);
+        cell.querySelector(".model-meta").replaceChildren(link);
+      }
+
+      const publisherAvatars = new Map();
+
+      async function fetchPublisherAvatar(owner) {
+        for (const kind of ["organizations", "users"]) {
+          try {
+            const response = await fetch(`https://huggingface.co/api/${kind}/${encodeURIComponent(owner)}/overview`, { credentials: "omit" });
+            if (!response.ok) continue;
+            const { avatarUrl } = await response.json();
+            if (avatarUrl?.startsWith("https://cdn-avatars.huggingface.co/")) return avatarUrl;
+          } catch {
+            // Keep the initials when the Hub cannot be reached.
+          }
+        }
+        return null;
+      }
+
+      function publisherAvatar(owner) {
+        const badge = document.createElement("span");
+        badge.className = "publisher-avatar";
+        badge.title = owner || "Hugging Face";
+        badge.setAttribute("aria-hidden", "true");
+        badge.textContent = owner ? owner.slice(0, 2).toUpperCase() : "HF";
+        if (!owner) return badge;
+        if (!publisherAvatars.has(owner)) publisherAvatars.set(owner, fetchPublisherAvatar(owner));
+        publisherAvatars.get(owner).then((url) => {
+          if (!url || !badge.isConnected) return;
+          const img = document.createElement("img");
+          img.alt = "";
+          img.loading = "lazy";
+          img.referrerPolicy = "no-referrer";
+          img.addEventListener("error", () => img.remove(), { once: true });
+          img.src = url;
+          badge.append(img);
+        });
+        return badge;
+      }
+
       function modelRow(model) {
         const key = modelKey(model);
         const id = repoId(model, "model");
         const command = model.platform === "huggingface" ? `hf download ${id}` : "";
         const row = document.createElement("tr");
-        row.innerHTML = `<td><div class="repo-id">${escapeHtml(id)}</div><div class="model-meta">${escapeHtml(model.platform)}</div></td><td class="command-cell"></td>${HARDWARE.map((hw) => `<td class="hw" data-hw-column="${hw}"><button class="toggle ${hasModel(hw, key) ? "on" : ""}" data-key="${hw}" title="切换 ${labels[hw]}" aria-label="${labels[hw]} ${hasModel(hw, key) ? "已启用" : "未启用"}"></button></td>`).join("")}<td class="action"><button class="icon-button" title="删除模型" aria-label="删除模型">×</button></td>`;
+        row.innerHTML = `<td><div class="model-identity"><div><div class="repo-id">${escapeHtml(id)}</div><div class="model-meta">${escapeHtml(model.platform)}</div></div></div></td><td class="command-cell"></td>${HARDWARE.map((hw) => `<td class="hw" data-hw-column="${hw}"><button class="toggle ${hasModel(hw, key) ? "on" : ""}" data-key="${hw}" title="切换 ${labels[hw]}" aria-label="${labels[hw]} ${hasModel(hw, key) ? "已启用" : "未启用"}"></button></td>`).join("")}<td class="action"><button class="icon-button" title="删除模型" aria-label="删除模型">×</button></td>`;
+        if (model.platform === "huggingface") {
+          sourceLink(row, id, "model");
+          const owner = model.organization || (id === "gpt2" ? "openai-community" : "");
+          row.querySelector(".model-identity").prepend(publisherAvatar(owner));
+        }
         row.querySelector(".command-cell").append(commandNode(command, model.platform));
         row.querySelectorAll(".toggle").forEach((button) => button.addEventListener("click", () => toggleHardware(button.dataset.key, model)));
         row.querySelector(".repo-id").addEventListener("click", () => openResourceDialog(model, "model"));
@@ -386,6 +444,7 @@
         const command = dataset.platform === "huggingface" ? `hf download --repo-type dataset ${id}` : "";
         const row = document.createElement("tr");
         row.innerHTML = `<td><div class="repo-id">${escapeHtml(id)}</div><div class="model-meta">${escapeHtml(dataset.platform)}</div></td><td class="command-cell"></td>${HARDWARE.map((hw) => `<td class="hw" data-hw-column="${hw}"><button class="toggle ${hasDataset(hw, key) ? "on" : ""}" data-key="${hw}" title="切换 ${labels[hw]}" aria-label="${labels[hw]} ${hasDataset(hw, key) ? "已启用" : "未启用"}"></button></td>`).join("")}<td class="action"><button class="icon-button" title="删除数据集" aria-label="删除数据集">×</button></td>`;
+        if (dataset.platform === "huggingface") sourceLink(row, id, "dataset");
         row.querySelector(".command-cell").append(commandNode(command, dataset.platform));
         row.querySelectorAll(".toggle").forEach((button) => button.addEventListener("click", () => toggleDatasetHardware(button.dataset.key, dataset)));
         row.querySelector(".repo-id").addEventListener("click", () => openResourceDialog(dataset, "dataset"));
