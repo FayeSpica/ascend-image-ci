@@ -166,8 +166,9 @@ jobs:
       image_tag: v0.34.0-pr22198-19c063b5-a3
       artifact_key: ascend-a3
       build_args: |
-        VLLM_TAG=${{ inputs.vllm_tag }}
-        VLLM_COMMIT=62d4bc3c7e33b1b6c906e233e6af2d3506c482ca
+        # The release tag resolves to 62d4bc3c7e33b1b6c906e233e6af2d3506c482ca.
+        # Clone the tag so setuptools-scm can derive the release version.
+        VLLM_TAG=v0.34.0
         # The Dockerfiles default PIP_INDEX_URL/MOONCAKE_INDEX_URL to Chinese
         # mirrors (tuna/aliyun) that 403 GitHub-hosted runner IPs; use PyPI.
         PIP_INDEX_URL=https://pypi.org/simple
