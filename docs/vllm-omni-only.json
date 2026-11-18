@@ -2,6 +2,11 @@
   "models": [
     {
       "platform": "huggingface",
+      "organization": "tencent",
+      "model_name": "HunyuanImage-3.0-Instruct-Distil"
+    },
+    {
+      "platform": "huggingface",
       "organization": "robbyant",
       "model_name": "lingbot-world-v2-14b-causal-fast-diffusers"
     },
@@ -205,6 +210,11 @@
   ],
   "a2": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "tencent",
+        "model_name": "HunyuanImage-3.0-Instruct-Distil"
+      },
       {
         "platform": "huggingface",
         "organization": "robbyant",
@@ -413,6 +423,11 @@
     "models": [
       {
         "platform": "huggingface",
+        "organization": "tencent",
+        "model_name": "HunyuanImage-3.0-Instruct-Distil"
+      },
+      {
+        "platform": "huggingface",
         "organization": "robbyant",
         "model_name": "lingbot-world-v2-14b-causal-fast-diffusers"
       },
@@ -617,6 +632,11 @@
   },
   "a5": {
     "models": [
+      {
+        "platform": "huggingface",
+        "organization": "tencent",
+        "model_name": "HunyuanImage-3.0-Instruct-Distil"
+      },
       {
         "platform": "huggingface",
         "organization": "robbyant",
