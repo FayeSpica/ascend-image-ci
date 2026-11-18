@@ -157,87 +157,19 @@ jobs:
     name: vllm-ascend
     needs: prep
     if: ${{ needs.prep.outputs.build_ascend == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        variant:
-          - dockerfile: Dockerfile
-            suffix: ''
-            key: ascend-a2
-            max_jobs: ''
-          - dockerfile: Dockerfile.a3
-            suffix: '-a3'
-            key: ascend-a3
-            max_jobs: ''
-          - dockerfile: Dockerfile.310p
-            suffix: '-310p'
-            key: ascend-310p
-            max_jobs: ''
-          - dockerfile: Dockerfile.a5
-            suffix: '-a5'
-            key: ascend-a5
-            # Reduce compiler memory pressure on hosted runners.
-            max_jobs: '2'
-        exclude:
-          - variant:
-              key: ${{ inputs.a5_only && 'ascend-a2' || 'none' }}
-              dockerfile: Dockerfile
-              suffix: ''
-              max_jobs: ''
-          - variant:
-              key: ${{ inputs.a5_only && 'ascend-a3' || 'none' }}
-              dockerfile: Dockerfile.a3
-              suffix: '-a3'
-              max_jobs: ''
-          - variant:
-              key: ${{ inputs.a5_only && 'ascend-310p' || 'none' }}
-              dockerfile: Dockerfile.310p
-              suffix: '-310p'
-              max_jobs: ''
     uses: ./.github/workflows/_build_push_image.yaml
     with:
       source_repo: vllm-project/vllm-ascend
-      source_ref: ${{ inputs.ascend_ref }}
-      dockerfile: ${{ matrix.variant.dockerfile }}
+      source_ref: 19c063b5471f90e158e163d27c2e0cc54af1700e
+      dockerfile: Dockerfile.a3
       image: quay.io/fayeomni/vllm-ascend
-      image_tag: ${{ needs.prep.outputs.ascend_tag }}${{ matrix.variant.suffix }}
-      artifact_key: ${{ matrix.variant.key }}
-      max_jobs: ${{ matrix.variant.max_jobs }}
-      patches: ${{ inputs.patch_refs }}
+      image_tag: v0.34.0-pr22198-19c063b5-a3
+      artifact_key: ascend-a3
       build_args: |
         VLLM_TAG=${{ inputs.vllm_tag }}
-        VLLM_COMMIT=${{ needs.prep.outputs.vllm_commit }}
+        VLLM_COMMIT=62d4bc3c7e33b1b6c906e233e6af2d3506c482ca
         # The Dockerfiles default PIP_INDEX_URL/MOONCAKE_INDEX_URL to Chinese
         # mirrors (tuna/aliyun) that 403 GitHub-hosted runner IPs; use PyPI.
         PIP_INDEX_URL=https://pypi.org/simple
         MOONCAKE_INDEX_URL=https://pypi.org/simple
-    secrets: inherit
-
-  omni:
-    name: vllm-omni
-    needs: [prep, ascend]
-    # run when omni is selected and ascend either succeeded or was skipped
-    # (omni-only build against an existing base tag)
-    if: ${{ always() && needs.prep.outputs.build_omni == 'true' && (needs.ascend.result == 'success' || needs.ascend.result == 'skipped') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        variant:
-          - dockerfile: docker/Dockerfile.npu
-            suffix: ''
-            key: omni-a2
-          - dockerfile: docker/Dockerfile.npu.a3
-            suffix: '-a3'
-            key: omni-a3
-    uses: ./.github/workflows/_build_push_image.yaml
-    with:
-      source_repo: vllm-project/vllm-omni
-      source_ref: ${{ inputs.omni_ref }}
-      dockerfile: ${{ matrix.variant.dockerfile }}
-      image: ${{ inputs.omni_image }}
-      image_tag: ${{ needs.prep.outputs.omni_tag }}${{ matrix.variant.suffix }}
-      artifact_key: ${{ matrix.variant.key }}
-      build_args: |
-        VLLM_ASCEND_IMAGE=${{ inputs.vllm_ascend_image }}
-        VLLM_ASCEND_TAG=${{ needs.prep.outputs.omni_base_tag }}${{ matrix.variant.suffix }}
     secrets: inherit

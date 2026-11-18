@@ -72,9 +72,6 @@ jobs:
       max-parallel: 2
       matrix:
         arch:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-            tag: amd64
           - platform: linux/arm64
             runner: ubuntu-22.04-arm
             tag: arm64
@@ -185,7 +182,7 @@ jobs:
           platforms: ${{ matrix.arch.platform }}
           push: true
           provenance: false
-          tags: ${{ inputs.image }}:${{ inputs.image_tag }}-${{ matrix.arch.tag }}
+          tags: ${{ inputs.image }}:${{ inputs.image_tag }}
           build-args: |
             ${{ inputs.build_args }}
             ${{ inputs.max_jobs != '' && format('MAX_JOBS={0}', inputs.max_jobs) || '' }}
@@ -207,62 +204,3 @@ jobs:
           name: build-diag-${{ inputs.artifact_key }}-${{ matrix.arch.tag }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/build-diag/*.log
           if-no-files-found: warn
-
-  merge:
-    name: merge ${{ inputs.artifact_key }}
-    runs-on: ubuntu-latest
-    needs: build-push
-    permissions:
-      contents: read
-    steps:
-      - name: Login to Quay
-        uses: docker/login-action@v4
-        with:
-          registry: quay.io
-          username: ${{ vars.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Merge and push multi-arch manifest
-        env:
-          TAG: ${{ inputs.image }}:${{ inputs.image_tag }}
-        run: |
-          docker buildx imagetools create -t "${TAG}" \
-            "${TAG}-amd64" \
-            "${TAG}-arm64"
-          docker buildx imagetools inspect "${TAG}"
-
-      # Prune the interim per-arch tags now that the multi-arch manifest
-      # references their digests. Uses Quay's REST API so only these two tag
-      # pointers are removed and nothing is baked into any image: a v2 registry
-      # DELETE by digest (what `skopeo delete` does) would drop the shared child
-      # manifest and break the list, and a quay.expires-after label would be
-      # inherited by FROM-derived and retagged images. The digests survive
-      # because the manifest list references them.
-      - name: Delete per-arch tags
-        env:
-          IMAGE: ${{ inputs.image }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          QUAY_TOKEN: ${{ secrets.QUAY_OAUTH_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${QUAY_TOKEN:-}" ]]; then
-            echo "QUAY_OAUTH_TOKEN not set; skipping per-arch tag cleanup."
-            exit 0
-          fi
-          # API path uses <namespace>/<repo> without the registry host.
-          repo="${IMAGE#quay.io/}"
-          for arch in amd64 arm64; do
-            tag="${IMAGE_TAG}-${arch}"
-            echo "Deleting tag ${repo}:${tag}"
-            code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
-              -H "Authorization: Bearer ${QUAY_TOKEN}" \
-              "https://quay.io/api/v1/repository/${repo}/tag/${tag}")
-            if [[ "$code" == "204" || "$code" == "200" ]]; then
-              echo "Deleted ${repo}:${tag}"
-            else
-              echo "::warning::Failed to delete ${repo}:${tag} (HTTP ${code})"
-            fi
-          done
